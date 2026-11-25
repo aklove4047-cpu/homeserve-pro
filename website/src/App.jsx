@@ -4,14 +4,16 @@ import {
   Hammer, Paintbrush, ShieldCheck, Droplets, Search, ShoppingBag,
   Star, Clock, CheckCircle2, X, ClipboardList, Plus, Minus,
   Cpu, Users, Award, HelpCircle, ChevronDown, Heart, MessageSquare,
-  Send, Tag, FileText, Moon, Sun, Home, User, FilePlus2, MapPin
+  Send, Tag, FileText, Moon, Sun, Home, User, FilePlus2, MapPin,
+  Car, Scissors, Bell, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 const ICON_MAP = {
   Wind, Tv, Smartphone, Laptop, Refrigerator, Zap, Wrench,
-  Sparkles, Hammer, Paintbrush, ShieldCheck, Droplets, Cpu
+  Sparkles, Hammer, Paintbrush, ShieldCheck, Droplets, Cpu,
+  Home, Car, Scissors, Heart
 };
 
 const TIME_SLOTS = [
@@ -45,6 +47,10 @@ export default function App() {
   const [blogs, setBlogs] = useState([]);
 
   const [selectedCat, setSelectedCat] = useState('all');
+  const [sortBy, setSortBy] = useState('popular');
+  const [showNotif, setShowNotif] = useState(false);
+  const [lang, setLang] = useState('EN');
+  const [ratingModal, setRatingModal] = useState(null);
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('Delhi NCR');
   const [cart, setCart] = useState([]);
@@ -117,10 +123,12 @@ export default function App() {
 
   useEffect(() => {
     loadAll().catch(console.error);
+    const timer = setInterval(() => setHeroSlide(s => (s + 1) % 3), 4500);
+    return () => clearInterval(timer);
   }, []);
 
   const filteredServices = useMemo(() => {
-    return services.filter(s => {
+    const list = services.filter(s => {
       const matchCat = selectedCat === 'all' || s.category_id === selectedCat;
       const q = search.trim().toLowerCase();
       const matchSearch = !q ||
@@ -129,7 +137,11 @@ export default function App() {
         (s.category_name || '').toLowerCase().includes(q);
       return matchCat && matchSearch;
     });
-  }, [services, selectedCat, search]);
+    if (sortBy === 'price_asc') return [...list].sort((a, b) => a.price - b.price);
+    if (sortBy === 'price_desc') return [...list].sort((a, b) => b.price - a.price);
+    if (sortBy === 'rating') return [...list].sort((a, b) => b.rating - a.rating);
+    return list;
+  }, [services, selectedCat, search, sortBy]);
 
   const toggleBookmark = (id) => {
     setBookmarks(prev => {
@@ -282,13 +294,28 @@ export default function App() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
+              <button className="btn btn-outline" style={{ padding: '7px 10px', fontSize: '0.78rem' }} onClick={() => setLang(lang === 'EN' ? 'HI' : 'EN')}>
+                {lang}
+              </button>
+              <button className="btn btn-outline" style={{ padding: 8, position: 'relative' }} onClick={() => setShowNotif(!showNotif)} title="Notifications">
+                <Bell size={16} />
+                <span style={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
+              </button>
               <button className="btn btn-outline" style={{ padding: 8 }} onClick={() => setDarkMode(!darkMode)} title="Toggle Dark Mode">
                 {darkMode ? <Sun size={16} /> : <Moon size={16} />}
               </button>
               <a href="/partner/" className="btn btn-primary" style={{ textDecoration: 'none' }}>
-                Partner Login
+                {lang === 'HI' ? 'पार्टनर लॉगिन' : 'Partner Login'}
               </a>
+              {showNotif && (
+                <div style={{ position: 'absolute', top: 46, right: 0, width: 280, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.15)', zIndex: 80 }}>
+                  <strong style={{ fontSize: '0.86rem', display: 'block', marginBottom: 8 }}>Notifications</strong>
+                  <div style={{ fontSize: '0.8rem', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>Booking #11059: Provider is On The Way!</div>
+                  <div style={{ fontSize: '0.8rem', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>Promo FIXO50: Get 50% OFF on your next order.</div>
+                  <div style={{ fontSize: '0.8rem', paddingTop: 6 }}>1 new bid received on your Custom Request!</div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -318,32 +345,47 @@ export default function App() {
                 <div className="hero-left">
                   {heroSlide === 0 ? (
                     <>
-                      <h1>Reliable &amp; Affordable <span>Home &amp; Tech</span> Services!</h1>
+                      <h1>Reliable &amp; Affordable <span>Plumbing</span> Services!</h1>
                       <ul className="hero-checks">
-                        <li><CheckCircle2 size={16} color="#ffd000" /> Laptop &amp; MacBook Repairs</li>
-                        <li><CheckCircle2 size={16} color="#ffd000" /> iPhone &amp; Android OLED Fix</li>
-                        <li><CheckCircle2 size={16} color="#ffd000" /> 4K QLED TV &amp; Wall Mount</li>
-                        <li><CheckCircle2 size={16} color="#ffd000" /> AC, Plumbing &amp; Accessories</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Leak Repairs &amp; Pipe Installation</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Drain Cleaning &amp; Clog Removal</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Water Heater Installation &amp; Repair</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Emergency Plumbing Services</li>
+                      </ul>
+                    </>
+                  ) : heroSlide === 1 ? (
+                    <>
+                      <h1>Quick &amp; Reliable Services <span>at Your Doorstep!</span></h1>
+                      <ul className="hero-checks">
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Home &amp; Kitchen Cleaning</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> AC Wash &amp; Gas Refill</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Electric &amp; EV Charger</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Salon, Car Wash &amp; Pet Care</li>
                       </ul>
                     </>
                   ) : (
                     <>
-                      <h1>Quick &amp; Reliable Services <span>at Your Doorstep!</span></h1>
+                      <h1>Verified <span>Local Experts</span> Ready 24/7!</h1>
                       <ul className="hero-checks">
-                        <li><CheckCircle2 size={16} color="#ffd000" /> Verified Professionals</li>
-                        <li><CheckCircle2 size={16} color="#ffd000" /> Up to 365-Day Warranty</li>
-                        <li><CheckCircle2 size={16} color="#ffd000" /> Custom Job Bidding</li>
-                        <li><CheckCircle2 size={16} color="#ffd000" /> Live Provider Chat</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Up to 180-Day Warranty</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Custom Job Request Bidding</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Live Chat with Providers</li>
+                        <li><CheckCircle2 size={16} color="#ffd000" /> Instant PDF Invoices</li>
                       </ul>
                     </>
                   )}
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                     <button className="btn btn-yellow" onClick={() => document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' })}>
                       Book Now
                     </button>
-                    <button className="btn" style={{ background: 'transparent', color: '#fff', border: '1.5px solid #fff' }} onClick={() => setHeroSlide(heroSlide === 0 ? 1 : 0)}>
+                    <button className="btn" style={{ background: 'transparent', color: '#fff', border: '1.5px solid #fff' }} onClick={() => setHeroSlide((heroSlide + 1) % 3)}>
                       Explore Services
                     </button>
+                    <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
+                      {[0, 1, 2].map(dot => (
+                        <button key={dot} onClick={() => setHeroSlide(dot)} style={{ width: heroSlide === dot ? 20 : 8, height: 8, borderRadius: 99, border: 'none', background: heroSlide === dot ? '#ffd000' : 'rgba(255,255,255,0.45)', transition: 'all 0.2s' }} />
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -429,14 +471,20 @@ export default function App() {
             </div>
           </section>
 
-          {/* Services & Tech Accessories */}
+          {/* Services & Solutions */}
           <section className="section" id="services-section" style={{ paddingTop: 10 }}>
             <div className="container">
               <div className="section-header">
                 <div>
-                  <h2>{selectedCat === 'all' ? 'Popular Services, Laptops, Mobiles, TVs & Accessories' : categories.find(c => c.id === selectedCat)?.name}</h2>
-                  <p>{filteredServices.length} items available with upfront pricing &amp; warranty</p>
+                  <h2>{selectedCat === 'all' ? 'All Services & Solutions' : categories.find(c => c.id === selectedCat)?.name}</h2>
+                  <p>{filteredServices.length} services available with upfront pricing &amp; warranty</p>
                 </div>
+                <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontWeight: 600 }}>
+                  <option value="popular">Sort: Popular</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="rating">Top Rated</option>
+                </select>
               </div>
 
               <div className="services-grid">
