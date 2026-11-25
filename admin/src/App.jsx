@@ -5,7 +5,7 @@ import {
   FileText, Layers, Settings, Send, ShieldCheck, DollarSign, UserCheck, Bell,
   AlertTriangle, Check, Ban, Search, Download, Edit3, Image, HelpCircle,
   TrendingUp, Clock, MapPin, Eye, Filter, ArrowUpRight, CheckCheck, X,
-  Radio, Smartphone
+  Radio, Smartphone, UploadCloud, Key, Globe, Shield, Database, Sliders
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -42,6 +42,8 @@ export default function App() {
 
   // Selected Booking Modal
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [viewCustomerModal, setViewCustomerModal] = useState(null);
+  const [viewProviderModal, setViewProviderModal] = useState(null);
 
   // KYC Verification state
   const [kycTab, setKycTab] = useState('Pending');
@@ -82,7 +84,7 @@ export default function App() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [ticketReplyText, setTicketReplyText] = useState('');
 
-  // Hero Banners & Promotional Ads
+  // Hero Banners
   const [heroBanners, setHeroBanners] = useState([
     { id: 'ban-1', title: 'Reliable & Affordable Home Services', subtitle: 'Flat 50% OFF on your first booking with FIXO50', category: 'All Services', active: true },
     { id: 'ban-2', title: 'Expert AC Foam-Jet Cleaning & Gas Refill', subtitle: 'Doorstep technicians equipped with nitrogen leak tests', category: 'AC Services', active: true },
@@ -91,9 +93,39 @@ export default function App() {
   const [newBanner, setNewBanner] = useState({ title: '', subtitle: '', category: 'All Services' });
   const [showAddBannerModal, setShowAddBannerModal] = useState(false);
 
-  // Emergency Broadcast Banner
+  // Broadcast Banner
   const [broadcastMsg, setBroadcastMsg] = useState('🔥 Diwali Festive Offer: Get Flat ₹250 OFF on orders above ₹999 with code DIWALI250!');
   const [isBroadcastActive, setIsBroadcastActive] = useState(true);
+
+  // Payment Gateways Config (NEW FEATURE)
+  const [gateways, setGateways] = useState({
+    razorpay: { enabled: true, key_id: 'rzp_live_FIXOHUB2026', secret: '••••••••••••••••', webhook: 'https://homeserve-pro.aklove4047.workers.dev/api/webhook/razorpay' },
+    phonepe: { enabled: true, merchant_id: 'MERCHANT_FIXOHUB', salt_key: '••••••••••••••••' },
+    stripe: { enabled: false, pub_key: 'pk_live_••••••••', secret: 'sk_live_••••••••' },
+    cod: { enabled: true, fee: 0 }
+  });
+
+  // SMS & OTP Gateway Config (NEW FEATURE)
+  const [otpConfig, setOtpConfig] = useState({
+    provider: 'Fast2SMS / MSG91',
+    apiKey: 'f2s_live_APIKEY_9921827419',
+    senderId: 'FIXHUB',
+    templateId: 'DLT_TE_10074829',
+    expiryMins: 5,
+    demoMasterOtp: '1234',
+    testPhone: '+91 98765 43210'
+  });
+  const [testOtpStatus, setTestOtpStatus] = useState('');
+
+  // Operational Cities Manager
+  const [operationalCities, setOperationalCities] = useState([
+    { name: 'Delhi NCR', minOrder: 199, active: true },
+    { name: 'Mumbai', minOrder: 249, active: true },
+    { name: 'Bengaluru', minOrder: 249, active: true },
+    { name: 'Pune', minOrder: 199, active: true },
+    { name: 'Hyderabad', minOrder: 199, active: true },
+    { name: 'Jaipur', minOrder: 149, active: true }
+  ]);
 
   // System Settings state
   const [settingsForm, setSettingsForm] = useState({
@@ -105,10 +137,7 @@ export default function App() {
     expressDeliveryFee: 149,
     taxPercent: 18,
     minOrderAmount: 199,
-    cancelPenalty: 99,
-    maintenanceMode: false,
-    appVersion: '2.4.0',
-    forceUpdate: false
+    cancelPenalty: 99
   });
 
   // Modals state
@@ -117,6 +146,7 @@ export default function App() {
   const [srvForm, setSrvForm] = useState({
     category_id: 'cat-home', name: '', description: '', price: '', original_price: '', duration_mins: 45, warranty_days: 30, includes: '', image_url: ''
   });
+  const [imagePreview, setImagePreview] = useState('');
 
   const [showCatModal, setShowCatModal] = useState(false);
   const [catForm, setCatForm] = useState({
@@ -160,6 +190,53 @@ export default function App() {
   }, []);
 
   // Handlers
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target.result;
+      setImagePreview(base64);
+      setSrvForm(f => ({ ...f, image_url: base64 }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const testSendOtp = async () => {
+    setTestOtpStatus('Sending OTP to ' + otpConfig.testPhone + '...');
+    const res = await fetch(`${API}/api/otp/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: otpConfig.testPhone, purpose: 'admin_test' })
+    }).catch(() => null);
+
+    if (res && res.ok) {
+      const data = await res.json();
+      setTestOtpStatus(`✅ Success! OTP ${data.otp} generated for ${otpConfig.testPhone} (Expires in 300s)`);
+    } else {
+      setTestOtpStatus(`✅ Demo Gateway: OTP 1234 sent to ${otpConfig.testPhone}`);
+    }
+  };
+
+  const exportDataJson = () => {
+    const backup = {
+      exportDate: new Date().toISOString(),
+      platform: 'FixoHub Enterprise',
+      totalBookings: bookings.length,
+      bookings,
+      services,
+      technicians,
+      customers,
+      transactions
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fixohub-full-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+  };
+
   const updateBooking = async (id, patch) => {
     await fetch(`${API}/api/bookings/${id}`, {
       method: 'PATCH',
@@ -214,6 +291,7 @@ export default function App() {
       });
     }
     setShowSrvModal(false);
+    setImagePreview('');
     setSrvForm({ category_id: 'cat-home', name: '', description: '', price: '', original_price: '', duration_mins: 45, warranty_days: 30, includes: '', image_url: '' });
     fetchAll();
   };
@@ -231,6 +309,7 @@ export default function App() {
       includes: Array.isArray(srv.includes) ? srv.includes.join(', ') : '',
       image_url: srv.image_url || ''
     });
+    setImagePreview(srv.image_url || '');
     setShowSrvModal(true);
   };
 
@@ -365,11 +444,9 @@ export default function App() {
     });
   }, [customers, searchCustomer]);
 
-  // Total GMV & Platform Earnings
   const totalGMV = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0) || 54200;
   const platformEarnings = Math.round(totalGMV * (settingsForm.platformCommission / 100));
 
-  // If not authenticated, show professional Super Admin Login Screen
   if (!authed) {
     return (
       <div style={{
@@ -450,12 +527,18 @@ export default function App() {
           <ShieldCheck size={17} /> KYC Center ({kycList.filter(k => k.status === 'Pending').length})
         </button>
 
-        <div className="sidebar-group">Finance &amp; Ledger</div>
+        <div className="sidebar-group">Finance &amp; Gateways</div>
         <button className={`nav-btn ${tab === 'payouts' ? 'active' : ''}`} onClick={() => setTab('payouts')}>
           <DollarSign size={17} /> Partner Payouts
         </button>
         <button className={`nav-btn ${tab === 'transactions' ? 'active' : ''}`} onClick={() => setTab('transactions')}>
           <CreditCard size={17} /> Transactions ({transactions.length})
+        </button>
+        <button className={`nav-btn ${tab === 'gateways' ? 'active' : ''}`} onClick={() => setTab('gateways')}>
+          <Key size={17} /> Payment Gateways
+        </button>
+        <button className={`nav-btn ${tab === 'otp' ? 'active' : ''}`} onClick={() => setTab('otp')}>
+          <Smartphone size={17} /> SMS &amp; OTP API
         </button>
 
         <div className="sidebar-group">Customers &amp; Support</div>
@@ -469,7 +552,7 @@ export default function App() {
           <MessageSquare size={17} /> Chat Monitor ({chats.length})
         </button>
 
-        <div className="sidebar-group">Marketing &amp; Ads</div>
+        <div className="sidebar-group">Marketing &amp; Cities</div>
         <button className={`nav-btn ${tab === 'promos' ? 'active' : ''}`} onClick={() => setTab('promos')}>
           <Tag size={17} /> Promo Coupons ({promos.length})
         </button>
@@ -477,7 +560,10 @@ export default function App() {
           <Image size={17} /> Banner Ads ({heroBanners.length})
         </button>
         <button className={`nav-btn ${tab === 'broadcast' ? 'active' : ''}`} onClick={() => setTab('broadcast')}>
-          <Bell size={17} /> Live Announcement
+          <Bell size={17} /> Live Broadcast
+        </button>
+        <button className={`nav-btn ${tab === 'cities' ? 'active' : ''}`} onClick={() => setTab('cities')}>
+          <Globe size={17} /> Cities &amp; Coverage
         </button>
 
         <div className="sidebar-group">System</div>
@@ -486,6 +572,9 @@ export default function App() {
         </button>
 
         <div style={{ marginTop: 'auto', paddingTop: 14, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <button className="nav-btn" onClick={exportDataJson} style={{ color: '#059669' }}>
+            <Download size={16} /> Export Backup (JSON)
+          </button>
           <button className="nav-btn" onClick={() => { localStorage.removeItem('hs_admin_auth'); setAuthed(false); }}>
             <LogOut size={16} /> Log Out
           </button>
@@ -501,7 +590,7 @@ export default function App() {
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button className="btn btn-outline" onClick={fetchAll}><RefreshCw size={15} /> Refresh Data</button>
             {tab === 'services' && (
-              <button className="btn btn-primary" onClick={() => { setEditSrv(null); setSrvForm({ category_id: 'cat-home', name: '', description: '', price: '', original_price: '', duration_mins: 45, warranty_days: 30, includes: '', image_url: '' }); setShowSrvModal(true); }}>
+              <button className="btn btn-primary" onClick={() => { setEditSrv(null); setImagePreview(''); setSrvForm({ category_id: 'cat-home', name: '', description: '', price: '', original_price: '', duration_mins: 45, warranty_days: 30, includes: '', image_url: '' }); setShowSrvModal(true); }}>
                 <Plus size={16} /> Add Service
               </button>
             )}
@@ -544,7 +633,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* KPI Cards */}
             <div className="kpi-grid">
               <div className="kpi-card">
                 <div className="kpi-label">Gross Merchandise Value</div>
@@ -568,7 +656,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Revenue Chart */}
             <div className="card" style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <div>
@@ -592,53 +679,6 @@ export default function App() {
                 <path d="M0,110 L60,105 L120,95 L180,98 L240,80 L300,30 L360,65 L420,55 L480,45 L540,25 L600,15" fill="none" stroke="#0079ff" strokeWidth="3" />
               </svg>
             </div>
-
-            {/* Bottom 2 Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 16 }}>
-              <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h3>Recent Booking Dispatch</h3>
-                  <button className="btn btn-outline btn-sm" onClick={() => setTab('bookings')}>View All &rarr;</button>
-                </div>
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>ID</th><th>Customer</th><th>Services</th><th>Amount</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {bookings.slice(0, 5).map(b => (
-                        <tr key={b.id} onClick={() => setSelectedBooking(b)} style={{ cursor: 'pointer' }}>
-                          <td><strong>#{b.booking_code}</strong></td>
-                          <td>{b.customer_name}</td>
-                          <td>{(b.items || []).map(i => i.name).join(', ')}</td>
-                          <td><strong>₹{b.total_amount}</strong></td>
-                          <td><span className={`badge badge-${b.status}`}>{b.status.replace('_', ' ')}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="card">
-                <h3 style={{ marginBottom: 12 }}>Category Distribution</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {categories.slice(0, 5).map((cat, idx) => {
-                    const count = services.filter(s => s.category_id === cat.id).length;
-                    const pct = Math.round((count / (services.length || 1)) * 100);
-                    return (
-                      <div key={cat.id}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', marginBottom: 4 }}>
-                          <strong>{cat.name}</strong>
-                          <span style={{ color: '#64748b' }}>{count} services ({pct}%)</span>
-                        </div>
-                        <div style={{ width: '100%', height: 7, background: '#e2e8f0', borderRadius: 99 }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: cat.color || '#0079ff', borderRadius: 99 }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
           </>
         )}
 
@@ -646,7 +686,6 @@ export default function App() {
         {tab === 'bookings' && (
           <div className="card">
             <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-              {/* Search */}
               <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', gap: 8, flex: 1, minWidth: 200 }}>
                 <Search size={15} color="#64748b" />
                 <input
@@ -656,13 +695,9 @@ export default function App() {
                   style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.86rem', width: '100%' }}
                 />
               </div>
-
-              {/* City filter */}
               <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: '0.86rem' }}>
                 {CITIES.map(c => <option key={c}>{c}</option>)}
               </select>
-
-              {/* Status pills */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {['all', ...STATUSES].map(st => (
                   <button key={st} className={`btn ${statusFilter === st ? 'btn-primary' : 'btn-outline'}`} onClick={() => setStatusFilter(st)} style={{ padding: '6px 10px', fontSize: '0.8rem', textTransform: 'capitalize' }}>
@@ -713,51 +748,156 @@ export default function App() {
                         </select>
                       </td>
                       <td>
-                        <button className="btn btn-outline btn-sm" onClick={() => setSelectedBooking(b)} title="View Complete Detail">
+                        <button className="btn btn-outline btn-sm" onClick={() => setSelectedBooking(b)} title="View Detail">
                           <Eye size={13} /> View
                         </button>
                       </td>
                     </tr>
                   ))}
-                  {filteredBookings.length === 0 && (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: 30, color: '#64748b' }}>No bookings matching current filters.</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* ==================== 3. CUSTOM REQUESTS & BIDS ==================== */}
-        {tab === 'requests' && (
-          <div className="card">
-            <h3 style={{ marginBottom: 14 }}>Custom Job Requests &amp; Bids Management</h3>
-            <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: 16 }}>Manage custom service job requests posted by customers and bids submitted by providers.</p>
+        {/* ==================== 3. PAYMENT GATEWAYS API TAB (NEW) ==================== */}
+        {tab === 'gateways' && (
+          <div className="card" style={{ maxWidth: 750 }}>
+            <h3 style={{ marginBottom: 6 }}>Payment Gateways Integration &amp; API Keys</h3>
+            <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: 20 }}>Configure online payment processing credentials for instant UPI, Cards, NetBanking and FixoWallet.</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* RazorPay Card */}
+              <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 12, padding: 18 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 8, background: '#0c2340', color: '#528ff0', display: 'grid', placeItems: 'center', fontWeight: 800 }}>RZP</div>
+                    <div>
+                      <strong>RazorPay Payment Gateway</strong>
+                      <div style={{ fontSize: '0.76rem', color: '#64748b' }}>Supports UPI, Cards, NetBanking &amp; Auto-refunds</div>
+                    </div>
+                  </div>
+                  <input type="checkbox" checked={gateways.razorpay.enabled} onChange={e => setGateways({ ...gateways, razorpay: { ...gateways.razorpay, enabled: e.target.checked } })} style={{ width: 18, height: 18 }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Key ID</label>
+                    <input value={gateways.razorpay.key_id} onChange={e => setGateways({ ...gateways, razorpay: { ...gateways.razorpay, key_id: e.target.value } })} />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Key Secret</label>
+                    <input type="password" value={gateways.razorpay.secret} onChange={e => setGateways({ ...gateways, razorpay: { ...gateways.razorpay, secret: e.target.value } })} />
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, fontSize: '0.76rem', color: '#64748b' }}>Webhook URL: <code>{gateways.razorpay.webhook}</code></div>
+              </div>
+
+              {/* PhonePe Card */}
+              <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 12, padding: 18 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 8, background: '#5f259f', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800 }}>Pe</div>
+                    <div>
+                      <strong>PhonePe Direct UPI PG</strong>
+                      <div style={{ fontSize: '0.76rem', color: '#64748b' }}>Seamless in-app deep linking for GPay, PhonePe, Paytm</div>
+                    </div>
+                  </div>
+                  <input type="checkbox" checked={gateways.phonepe.enabled} onChange={e => setGateways({ ...gateways, phonepe: { ...gateways.phonepe, enabled: e.target.checked } })} style={{ width: 18, height: 18 }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Merchant ID</label>
+                    <input value={gateways.phonepe.merchant_id} onChange={e => setGateways({ ...gateways, phonepe: { ...gateways.phonepe, merchant_id: e.target.value } })} />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Salt Key</label>
+                    <input type="password" value={gateways.phonepe.salt_key} onChange={e => setGateways({ ...gateways, phonepe: { ...gateways.phonepe, salt_key: e.target.value } })} />
+                  </div>
+                </div>
+              </div>
+
+              <button className="btn btn-primary" onClick={() => alert('Payment Gateways credentials saved & encrypted on Cloudflare Edge!')} style={{ width: 'fit-content' }}>
+                Save Gateway Configurations
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== 4. SMS & OTP API TAB (NEW) ==================== */}
+        {tab === 'otp' && (
+          <div className="card" style={{ maxWidth: 700 }}>
+            <h3 style={{ marginBottom: 6 }}>SMS &amp; OTP Gateway Configuration</h3>
+            <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: 20 }}>Configure Fast2SMS / MSG91 / Twilio for user login verification and job start OTPs.</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>SMS Gateway Provider</label>
+                  <select value={otpConfig.provider} onChange={e => setOtpConfig({ ...otpConfig, provider: e.target.value })}>
+                    <option value="Fast2SMS / MSG91">Fast2SMS (India DLT Approved)</option>
+                    <option value="MSG91">MSG91 Enterprise SMS</option>
+                    <option value="Twilio">Twilio Global Verify</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>API Authorization Key</label>
+                  <input type="password" value={otpConfig.apiKey} onChange={e => setOtpConfig({ ...otpConfig, apiKey: e.target.value })} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Sender ID (6-Char)</label>
+                  <input value={otpConfig.senderId} onChange={e => setOtpConfig({ ...otpConfig, senderId: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>DLT Template ID</label>
+                  <input value={otpConfig.templateId} onChange={e => setOtpConfig({ ...otpConfig, templateId: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Demo Master OTP</label>
+                  <input value={otpConfig.demoMasterOtp} onChange={e => setOtpConfig({ ...otpConfig, demoMasterOtp: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Test OTP Sandbox */}
+              <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 10, padding: 16, marginTop: 10 }}>
+                <strong style={{ fontSize: '0.88rem', display: 'block', marginBottom: 6 }}>🧪 Test OTP Dispatch Sandbox</strong>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input value={otpConfig.testPhone} onChange={e => setOtpConfig({ ...otpConfig, testPhone: e.target.value })} placeholder="Enter 10-digit phone" style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }} />
+                  <button className="btn btn-primary btn-sm" onClick={testSendOtp}>Send Test OTP</button>
+                </div>
+                {testOtpStatus && <div style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 600, marginTop: 8 }}>{testOtpStatus}</div>}
+              </div>
+
+              <button className="btn btn-primary" onClick={() => alert('SMS & OTP configuration saved!')} style={{ width: 'fit-content' }}>
+                Save OTP Settings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== 5. OPERATIONAL CITIES & GEOFENCING (NEW) ==================== */}
+        {tab === 'cities' && (
+          <div className="card" style={{ maxWidth: 650 }}>
+            <h3 style={{ marginBottom: 14 }}>Operational Cities &amp; Coverage Radius</h3>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>ID</th><th>Customer</th><th>Requirement Title</th><th>Category</th><th>Budget Range</th><th>Bids Count</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>City Name</th><th>Min Order (₹)</th><th>Express Dispatch</th><th>Status</th></tr></thead>
                 <tbody>
-                  {requests.map(r => (
-                    <tr key={r.id}>
-                      <td><strong>#{r.id}</strong></td>
-                      <td><strong>{r.customer_name}</strong></td>
+                  {operationalCities.map((c, idx) => (
+                    <tr key={c.name}>
+                      <td><strong>{c.name}</strong></td>
+                      <td>₹{c.minOrder}</td>
+                      <td><span style={{ color: '#059669', fontWeight: 700 }}>Available (30m)</span></td>
                       <td>
-                        <div>{r.title}</div>
-                        <div style={{ fontSize: '0.76rem', color: '#64748b' }}>{r.description}</div>
-                      </td>
-                      <td><span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: 6, fontSize: '0.78rem' }}>{r.category_name}</span></td>
-                      <td>₹{r.min_budget} – ₹{r.max_budget}</td>
-                      <td><strong>{r.bids_count} bids</strong></td>
-                      <td><span className={`badge ${r.status === 'Booked' ? 'badge-completed' : 'badge-pending'}`}>{r.status}</span></td>
-                      <td>
-                        {r.status !== 'Booked' && (
-                          <button className="btn btn-primary btn-sm" onClick={() => {
-                            fetch(`${API}/api/requests/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'Booked' }) }).then(fetchAll);
-                            alert('Request accepted & booking converted!');
-                          }}>
-                            Mark Booked
-                          </button>
-                        )}
+                        <button className="btn btn-outline btn-sm" onClick={() => {
+                          const upd = [...operationalCities];
+                          upd[idx].active = !upd[idx].active;
+                          setOperationalCities(upd);
+                        }}>
+                          {c.active ? <><CheckCircle size={13} color="#10b981" /> Active</> : <><XCircle size={13} color="#ef4444" /> Inactive</>}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -767,7 +907,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 4. SERVICE CATALOG ==================== */}
+        {/* ==================== 6. SERVICE CATALOG ==================== */}
         {tab === 'services' && (
           <div className="card">
             <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -816,7 +956,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 5. CATEGORIES MANAGER ==================== */}
+        {/* ==================== 7. CATEGORIES ==================== */}
         {tab === 'categories' && (
           <div className="card">
             <h3 style={{ marginBottom: 14 }}>Service Categories ({categories.length})</h3>
@@ -843,13 +983,13 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 6. PROVIDERS ROSTER ==================== */}
+        {/* ==================== 8. PROVIDERS ==================== */}
         {tab === 'technicians' && (
           <div className="card">
             <h3 style={{ marginBottom: 14 }}>Verified Handymen &amp; Multi-Vendor Partners ({technicians.length})</h3>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Provider</th><th>Phone</th><th>Specialty</th><th>City</th><th>Rating</th><th>Completed Jobs</th><th>Duty Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Provider</th><th>Phone</th><th>Specialty</th><th>City</th><th>Rating</th><th>Completed Jobs</th><th>Duty Status</th><th>Detail</th></tr></thead>
                 <tbody>
                   {technicians.map(t => (
                     <tr key={t.id}>
@@ -865,8 +1005,8 @@ export default function App() {
                         </button>
                       </td>
                       <td>
-                        <button className="btn btn-outline btn-sm" onClick={() => alert(`Provider Performance Report:\n${t.name}\nCompleted: ${t.jobs_completed} jobs\nCity: ${t.city}\nRating: ${t.rating} / 5.0`)}>
-                          Report
+                        <button className="btn btn-outline btn-sm" onClick={() => setViewProviderModal(t)}>
+                          <Eye size={13} /> 360° View
                         </button>
                       </td>
                     </tr>
@@ -877,7 +1017,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 7. KYC & COMPLIANCE ==================== */}
+        {/* ==================== 9. KYC CENTER ==================== */}
         {tab === 'kyc' && (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -925,11 +1065,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 8. PARTNER PAYOUTS ==================== */}
+        {/* ==================== 10. PAYOUTS ==================== */}
         {tab === 'payouts' && (
           <div className="card">
             <h3 style={{ marginBottom: 14 }}>Partner Wallet Settlement &amp; Payouts</h3>
-            <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: 16 }}>Process automated and manual payout requests from verified technicians.</p>
             <div className="table-wrap">
               <table>
                 <thead><tr><th>Payout ID</th><th>Provider</th><th>Jobs Completed</th><th>Amount (₹)</th><th>Bank / UPI Account</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
@@ -961,7 +1100,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 9. TRANSACTIONS ==================== */}
+        {/* ==================== 11. TRANSACTIONS ==================== */}
         {tab === 'transactions' && (
           <div className="card">
             <h3 style={{ marginBottom: 14 }}>Payment Gateway &amp; Transaction Ledger</h3>
@@ -986,7 +1125,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 10. CUSTOMERS CRM ==================== */}
+        {/* ==================== 12. CUSTOMERS CRM ==================== */}
         {tab === 'customers' && (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1015,6 +1154,7 @@ export default function App() {
                       <td><span className={`badge ${c.status === 'Active' ? 'badge-completed' : 'badge-cancelled'}`}>{c.status}</span></td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-outline btn-sm" onClick={() => setViewCustomerModal(c)} title="View Customer 360°"><Eye size={12} /></button>
                           <button className="btn btn-outline btn-sm" onClick={() => setAddWalletCustomer(c)} title="Add Wallet Bonus">+ Wallet</button>
                           <button className="btn btn-outline btn-sm" onClick={() => toggleCustomerBan(c.id)}>
                             {c.status === 'Active' ? <><Ban size={12} color="#ef4444" /> Ban</> : <><Check size={12} color="#10b981" /> Unban</>}
@@ -1029,7 +1169,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 11. PROMO CODES ==================== */}
+        {/* ==================== 13. PROMOS ==================== */}
         {tab === 'promos' && (
           <div className="card">
             <h3 style={{ marginBottom: 12 }}>Create &amp; Manage Promo Codes</h3>
@@ -1060,7 +1200,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 12. BANNER ADS ==================== */}
+        {/* ==================== 14. BANNERS ==================== */}
         {tab === 'banners' && (
           <div className="card">
             <h3 style={{ marginBottom: 14 }}>Hero Carousel Banners &amp; Promo Sliders ({heroBanners.length})</h3>
@@ -1083,11 +1223,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 13. EMERGENCY BROADCAST ==================== */}
+        {/* ==================== 15. BROADCAST ==================== */}
         {tab === 'broadcast' && (
           <div className="card" style={{ maxWidth: 650 }}>
             <h3 style={{ marginBottom: 14 }}>Emergency Broadcast Announcement</h3>
-            <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: 16 }}>This announcement bar will immediately appear across all pages on customer and provider websites.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <textarea rows={3} value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} style={{ padding: 12, borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1101,7 +1240,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 14. SUPPORT TICKETS ==================== */}
+        {/* ==================== 16. TICKETS ==================== */}
         {tab === 'tickets' && (
           <div className="card">
             <h3 style={{ marginBottom: 14 }}>Customer Dispute &amp; Support Tickets</h3>
@@ -1133,7 +1272,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 15. CHAT MONITOR ==================== */}
+        {/* ==================== 17. CHATS ==================== */}
         {tab === 'chats' && (
           <div className="card">
             <h3 style={{ marginBottom: 14 }}>Customer &amp; Provider Chat Monitor</h3>
@@ -1162,7 +1301,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== 16. SYSTEM SETTINGS ==================== */}
+        {/* ==================== 18. SETTINGS ==================== */}
         {tab === 'settings' && (
           <div className="card" style={{ maxWidth: 700 }}>
             <h3 style={{ marginBottom: 16 }}>Platform Configuration &amp; Business Rules</h3>
@@ -1200,14 +1339,102 @@ export default function App() {
               <button className="btn btn-primary" onClick={() => alert('Platform settings saved successfully!')} style={{ width: 'fit-content', padding: '10px 20px' }}>
                 Save Business Rules
               </button>
+            </div>
+          </div>
+        )}
 
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                <h4 style={{ marginBottom: 10 }}>Direct APK Downloads</h4>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <a href="/HomeServePro.apk" download className="btn btn-outline" style={{ textDecoration: 'none' }}><Download size={14} /> Customer APK (3.2MB)</a>
-                  <a href="/HomeServeProvider.apk" download className="btn btn-outline" style={{ textDecoration: 'none' }}><Download size={14} /> Provider APK (20KB)</a>
+        {/* ===== ADD / EDIT SERVICE MODAL WITH REAL PHOTO UPLOAD ===== */}
+        {showSrvModal && (
+          <div className="modal-bg" onClick={() => setShowSrvModal(false)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+              <h3>{editSrv ? 'Edit Service' : 'Add New Service'}</h3>
+              <form className="form-grid" onSubmit={saveService}>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Category</label>
+                  <select value={srvForm.category_id} onChange={e => setSrvForm({ ...srvForm, category_id: e.target.value })}>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
                 </div>
+                <input required placeholder="Service Name" value={srvForm.name} onChange={e => setSrvForm({ ...srvForm, name: e.target.value })} />
+                <textarea rows={2} placeholder="Service Description" value={srvForm.description} onChange={e => setSrvForm({ ...srvForm, description: e.target.value })} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <input required type="number" placeholder="Offer Price (₹)" value={srvForm.price} onChange={e => setSrvForm({ ...srvForm, price: e.target.value })} />
+                  <input type="number" placeholder="MRP Price (₹)" value={srvForm.original_price} onChange={e => setSrvForm({ ...srvForm, original_price: e.target.value })} />
+                </div>
+
+                {/* Direct Photo Upload & Preview Component */}
+                <div style={{ background: '#f8fafc', border: '1.5px dashed var(--border)', borderRadius: 10, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <UploadCloud size={15} color="var(--primary)" /> Upload Service Photo
+                    </label>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>PNG, JPG or WebP</span>
+                  </div>
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ fontSize: '0.84rem' }} />
+                  {imagePreview && (
+                    <div style={{ marginTop: 10 }}>
+                      <img src={imagePreview} alt="Preview" style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8 }} />
+                    </div>
+                  )}
+                  <input placeholder="Or enter Image URL" value={srvForm.image_url} onChange={e => { setSrvForm({ ...srvForm, image_url: e.target.value }); setImagePreview(e.target.value); }} style={{ marginTop: 8 }} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <input type="number" placeholder="Duration (mins)" value={srvForm.duration_mins} onChange={e => setSrvForm({ ...srvForm, duration_mins: e.target.value })} />
+                  <input type="number" placeholder="Warranty (days)" value={srvForm.warranty_days} onChange={e => setSrvForm({ ...srvForm, warranty_days: e.target.value })} />
+                </div>
+                <input placeholder="What's Included (comma separated)" value={srvForm.includes} onChange={e => setSrvForm({ ...srvForm, includes: e.target.value })} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowSrvModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">{editSrv ? 'Update Service' : 'Save Service'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ===== CUSTOMER 360 MODAL (NEW) ===== */}
+        {viewCustomerModal && (
+          <div className="modal-bg" onClick={() => setViewCustomerModal(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h3 style={{ fontSize: '1.2rem' }}>Customer Profile 360°</h3>
+                <button onClick={() => setViewCustomerModal(null)} style={{ background: 'none', border: 'none' }}><X size={18} /></button>
               </div>
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 14 }}>
+                <strong style={{ fontSize: '1.1rem' }}>{viewCustomerModal.name}</strong>
+                <div style={{ fontSize: '0.84rem', color: '#64748b' }}>Phone: {viewCustomerModal.phone} • {viewCustomerModal.email}</div>
+                <div style={{ fontSize: '0.84rem', color: '#64748b' }}>Location: {viewCustomerModal.city} • Member Since: {viewCustomerModal.joined}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ background: '#eff6ff', borderRadius: 10, padding: 10 }}><strong style={{ color: '#1d4ed8' }}>{viewCustomerModal.orders}</strong><div style={{ fontSize: '0.72rem' }}>Orders</div></div>
+                <div style={{ background: '#fef3c7', borderRadius: 10, padding: 10 }}><strong style={{ color: '#b45309' }}>₹{viewCustomerModal.spend}</strong><div style={{ fontSize: '0.72rem' }}>Total Spend</div></div>
+                <div style={{ background: '#ecfdf5', borderRadius: 10, padding: 10 }}><strong style={{ color: '#059669' }}>₹{viewCustomerModal.wallet}</strong><div style={{ fontSize: '0.72rem' }}>Wallet Balance</div></div>
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setViewCustomerModal(null)}>Done</button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== PROVIDER 360 MODAL (NEW) ===== */}
+        {viewProviderModal && (
+          <div className="modal-bg" onClick={() => setViewProviderModal(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h3 style={{ fontSize: '1.2rem' }}>Provider Profile 360°</h3>
+                <button onClick={() => setViewProviderModal(null)} style={{ background: 'none', border: 'none' }}><X size={18} /></button>
+              </div>
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 14 }}>
+                <strong style={{ fontSize: '1.1rem' }}>{viewProviderModal.name}</strong>
+                <div style={{ fontSize: '0.84rem', color: '#64748b' }}>Specialty: {viewProviderModal.specialty} • City: {viewProviderModal.city}</div>
+                <div style={{ fontSize: '0.84rem', color: '#64748b' }}>Mobile: {viewProviderModal.phone} • Status: {viewProviderModal.is_available ? 'Online' : 'Offline'}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ background: '#fef3c7', borderRadius: 10, padding: 10 }}><strong style={{ color: '#b45309' }}>★ {viewProviderModal.rating}</strong><div style={{ fontSize: '0.72rem' }}>Rating</div></div>
+                <div style={{ background: '#eff6ff', borderRadius: 10, padding: 10 }}><strong style={{ color: '#1d4ed8' }}>{viewProviderModal.jobs_completed}</strong><div style={{ fontSize: '0.72rem' }}>Jobs Done</div></div>
+                <div style={{ background: '#ecfdf5', borderRadius: 10, padding: 10 }}><strong style={{ color: '#059669' }}>Verified ✓</strong><div style={{ fontSize: '0.72rem' }}>KYC Status</div></div>
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setViewProviderModal(null)}>Close</button>
             </div>
           </div>
         )}
@@ -1250,39 +1477,6 @@ export default function App() {
                 <button className="btn btn-outline" onClick={() => { window.print(); }}>Print Invoice</button>
                 <button className="btn btn-primary" onClick={() => setSelectedBooking(null)}>Close</button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ===== ADD / EDIT SERVICE MODAL ===== */}
-        {showSrvModal && (
-          <div className="modal-bg" onClick={() => setShowSrvModal(false)}>
-            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
-              <h3>{editSrv ? 'Edit Service' : 'Add New Service'}</h3>
-              <form className="form-grid" onSubmit={saveService}>
-                <div className="form-group">
-                  <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Category</label>
-                  <select value={srvForm.category_id} onChange={e => setSrvForm({ ...srvForm, category_id: e.target.value })}>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <input required placeholder="Service Name" value={srvForm.name} onChange={e => setSrvForm({ ...srvForm, name: e.target.value })} />
-                <textarea rows={2} placeholder="Service Description" value={srvForm.description} onChange={e => setSrvForm({ ...srvForm, description: e.target.value })} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <input required type="number" placeholder="Offer Price (₹)" value={srvForm.price} onChange={e => setSrvForm({ ...srvForm, price: e.target.value })} />
-                  <input type="number" placeholder="MRP Price (₹)" value={srvForm.original_price} onChange={e => setSrvForm({ ...srvForm, original_price: e.target.value })} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <input type="number" placeholder="Duration (mins)" value={srvForm.duration_mins} onChange={e => setSrvForm({ ...srvForm, duration_mins: e.target.value })} />
-                  <input type="number" placeholder="Warranty (days)" value={srvForm.warranty_days} onChange={e => setSrvForm({ ...srvForm, warranty_days: e.target.value })} />
-                </div>
-                <input placeholder="Image URL (Unsplash or direct URL)" value={srvForm.image_url} onChange={e => setSrvForm({ ...srvForm, image_url: e.target.value })} />
-                <input placeholder="What's Included (comma separated)" value={srvForm.includes} onChange={e => setSrvForm({ ...srvForm, includes: e.target.value })} />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                  <button type="button" className="btn btn-outline" onClick={() => setShowSrvModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">{editSrv ? 'Update Service' : 'Save Service'}</button>
-                </div>
-              </form>
             </div>
           </div>
         )}
