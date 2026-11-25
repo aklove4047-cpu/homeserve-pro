@@ -1,37 +1,40 @@
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    }
-  });
-}
-
-// In-memory demo OTP cache for ultra-fast OTP verification
-const OTP_STORE = new Map();
-
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        }
-      });
-    }
-
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
 
+    // In-memory OTP Store for sandbox / demo verification
+    if (!globalThis.OTP_STORE) {
+      globalThis.OTP_STORE = new Map();
+    }
+    const OTP_STORE = globalThis.OTP_STORE;
+
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
+    if (method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    const json = (data, status = 200) =>
+      new Response(JSON.stringify(data), {
+        status,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+
     try {
+      // ==================== HEALTH ====================
       if (path === '/api/health') {
-        return json({ ok: true, service: 'FixoHub Enterprise Worker', timestamp: new Date().toISOString() });
+        return json({
+          status: 'ok',
+          platform: 'FixoHub Enterprise',
+          database: 'Cloudflare D1',
+          timestamp: new Date().toISOString()
+        });
       }
 
       // ==================== OTP SYSTEM APIS ====================
@@ -42,16 +45,15 @@ export default {
         if (!phone) return json({ error: 'Phone number is required' }, 400);
 
         const cleanPhone = String(phone).replace(/\s+/g, '');
-        // Generate 4-digit OTP
         const otp = String(Math.floor(1000 + Math.random() * 9000));
-        const expiresAt = Date.now() + 5 * 60 * 1000; // 5 mins
+        const expiresAt = Date.now() + 5 * 60 * 1000;
         OTP_STORE.set(cleanPhone, { otp, expiresAt, purpose });
 
         return json({
           success: true,
-          message: `OTP sent successfully to ${phone}`,
+          message: `OTP sent successfully to ${cleanPhone}`,
           phone: cleanPhone,
-          otp, // returned for seamless instant testing / demo experience
+          otp,
           expires_in_seconds: 300
         });
       }
@@ -65,7 +67,6 @@ export default {
         const enteredOtp = String(otp).trim();
         const record = OTP_STORE.get(cleanPhone);
 
-        // Universal master demo OTP '1234' or exact generated OTP
         if (enteredOtp === '1234' || (record && record.otp === enteredOtp && Date.now() < record.expiresAt)) {
           OTP_STORE.delete(cleanPhone);
           return json({
@@ -73,36 +74,48 @@ export default {
             verified: true,
             message: 'Phone number verified successfully!',
             user: {
-              phone,
+              phone: cleanPhone,
               name: 'Customer',
               token: `fh_tok_${crypto.randomUUID().slice(0, 16)}`
             }
           });
         }
-        return json({ success: false, verified: false, error: 'Invalid or expired OTP. (Demo: try 1234)' }, 400);
+        return json({ success: false, verified: false, error: 'Invalid or expired OTP. (Demo master OTP: 1234)' }, 400);
       }
 
-      // ==================== PAYMENT GATEWAY APIS ====================
+      // ==================== PAYMENT GATEWAYS & SETTINGS ====================
       if (path === '/api/payments/gateways' && method === 'GET') {
+        const row = await env.DB.prepare("SELECT value FROM system_settings WHERE key = 'gateways_config'").first();
+        let gatewaysConfig = null;
+        if (row && row.value) {
+          try { gatewaysConfig = JSON.parse(row.value); } catch (_) {}
+        }
+        if (!gatewaysConfig) {
+          gatewaysConfig = {
+            razorpay: { enabled: true, key_id: 'rzp_live_FIXOHUB2026' },
+            phonepe: { enabled: true, merchant_id: 'MERCHANT_FIXOHUB' },
+            stripe: { enabled: false },
+            cod: { enabled: true }
+          };
+        }
         return json({
           gateways: [
-            { id: 'razorpay', name: 'RazorPay UPI / Cards / NetBanking', active: true, key_id: 'rzp_live_demo_fixohub' },
-            { id: 'phonepe', name: 'PhonePe Direct Payment Gateway', active: true, merchant_id: 'MERCHANT_FIXOHUB' },
+            { id: 'razorpay', name: 'RazorPay UPI / Cards / NetBanking', active: !!gatewaysConfig.razorpay?.enabled, key_id: gatewaysConfig.razorpay?.key_id },
+            { id: 'phonepe', name: 'PhonePe Direct Payment Gateway', active: !!gatewaysConfig.phonepe?.enabled, merchant_id: gatewaysConfig.phonepe?.merchant_id },
             { id: 'wallet', name: 'FixoWallet (Fast & 5% Cashback)', active: true },
-            { id: 'cod', name: 'Cash on Doorstep Visit', active: true }
+            { id: 'cod', name: 'Cash on Doorstep Visit', active: !!gatewaysConfig.cod?.enabled }
           ]
         });
       }
 
       if (path === '/api/payments/create-order' && method === 'POST') {
-        const { amount, currency = 'INR', booking_id = null } = await request.json();
+        const { amount, currency = 'INR', booking_id = null } = await request.json().catch(() => ({}));
         if (!amount) return json({ error: 'Amount is required' }, 400);
-
         const order_id = `order_rzp_${crypto.randomUUID().slice(0, 12)}`;
         return json({
           success: true,
           order_id,
-          amount: Math.round(Number(amount) * 100), // in paise for RazorPay
+          amount: Math.round(Number(amount) * 100),
           currency,
           key_id: 'rzp_test_FIXOHUB2026',
           booking_id
@@ -110,7 +123,7 @@ export default {
       }
 
       if (path === '/api/payments/verify' && method === 'POST') {
-        const { order_id, payment_id, booking_code, amount, customer_name, provider_name, method: payMethod = 'RazorPay' } = await request.json();
+        const { order_id, payment_id, booking_code, amount, customer_name, provider_name, method: payMethod = 'RazorPay' } = await request.json().catch(() => ({}));
         const txnId = `txn-${crypto.randomUUID().slice(0, 8)}`;
         const created_at = new Date().toISOString();
 
@@ -128,10 +141,292 @@ export default {
         });
       }
 
-      // ==================== IMAGE / PHOTO UPLOAD SIMULATOR ====================
+      // ==================== SYSTEM SETTINGS (PERSISTENT IN D1) ====================
+      if (path === '/api/settings' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT key, value FROM system_settings').all();
+        const settings = {};
+        for (const r of results) {
+          try {
+            settings[r.key] = JSON.parse(r.value);
+          } catch (_) {
+            settings[r.key] = r.value;
+          }
+        }
+        return json(settings);
+      }
+
+      if (path === '/api/settings' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const now = new Date().toISOString();
+        for (const [key, val] of Object.entries(body)) {
+          const strVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+          await env.DB.prepare(`
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+          `).bind(key, strVal, now).run();
+        }
+        return json({ success: true, message: 'Settings saved to D1 database successfully!' });
+      }
+
+      // ==================== KYC VERIFICATIONS (REAL D1 CRUD) ====================
+      if (path === '/api/kyc' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM kyc_verifications ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/kyc' && method === 'POST') {
+        const { provider_id, provider_name, phone, doc_type, cert_no, city = 'Delhi NCR', doc_url = '' } = await request.json().catch(() => ({}));
+        if (!provider_name || !phone || !doc_type) return json({ error: 'Missing required KYC fields' }, 400);
+        const id = `kyc-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO kyc_verifications (id, provider_id, provider_name, phone, doc_type, cert_no, city, doc_url, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
+        `).bind(id, provider_id || null, provider_name, phone, doc_type, cert_no || 'CERT-UNSPECIFIED', city, doc_url, now).run();
+        return json(await env.DB.prepare('SELECT * FROM kyc_verifications WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/kyc/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const { status, rejection_reason = '' } = await request.json().catch(() => ({}));
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          UPDATE kyc_verifications
+          SET status = ?, rejection_reason = ?, reviewed_at = ?
+          WHERE id = ?
+        `).bind(status, rejection_reason, now, id).run();
+        return json(await env.DB.prepare('SELECT * FROM kyc_verifications WHERE id = ?').bind(id).first());
+      }
+
+      // ==================== PARTNER PAYOUTS (REAL D1 CRUD) ====================
+      if (path === '/api/payouts' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM partner_payouts ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/payouts' && method === 'POST') {
+        const { provider_id, provider_name, amount, upi_id = '', bank_account = '', ifsc = '', jobs_count = 1 } = await request.json().catch(() => ({}));
+        if (!provider_name || !amount) return json({ error: 'provider_name and amount are required' }, 400);
+        const id = `PAY-${Math.floor(1000 + Math.random() * 9000)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO partner_payouts (id, provider_id, provider_name, amount, upi_id, bank_account, ifsc, status, jobs_count, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?)
+        `).bind(id, provider_id || null, provider_name, Number(amount), upi_id, bank_account, ifsc, Number(jobs_count), now).run();
+        return json(await env.DB.prepare('SELECT * FROM partner_payouts WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/payouts/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const { status, utr_number = '' } = await request.json().catch(() => ({}));
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          UPDATE partner_payouts
+          SET status = ?, utr_number = ?, settled_at = ?
+          WHERE id = ?
+        `).bind(status, utr_number, now, id).run();
+        return json(await env.DB.prepare('SELECT * FROM partner_payouts WHERE id = ?').bind(id).first());
+      }
+
+      // ==================== CUSTOMERS CRM (REAL D1 CRUD) ====================
+      if (path === '/api/customers' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM customers ORDER BY orders_count DESC, joined_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/customers' && method === 'POST') {
+        const { name, phone, email = '', city = 'Delhi NCR' } = await request.json().catch(() => ({}));
+        if (!name || !phone) return json({ error: 'name and phone are required' }, 400);
+        const id = `cust-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO customers (id, name, phone, email, city, orders_count, total_spend, wallet_balance, status, joined_at)
+          VALUES (?, ?, ?, ?, ?, 0, 0, 100, 'Active', ?)
+        `).bind(id, name, phone, email, city, now).run();
+        return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/customers/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const body = await request.json().catch(() => ({}));
+        const existing = await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'Customer not found' }, 404);
+
+        let newStatus = body.status !== undefined ? body.status : existing.status;
+        let newWallet = existing.wallet_balance;
+        if (body.wallet_delta !== undefined) {
+          newWallet += Number(body.wallet_delta);
+        } else if (body.wallet_balance !== undefined) {
+          newWallet = Number(body.wallet_balance);
+        }
+
+        await env.DB.prepare(`
+          UPDATE customers
+          SET status = ?, wallet_balance = ?
+          WHERE id = ?
+        `).bind(newStatus, newWallet, id).run();
+        return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first());
+      }
+
+      // ==================== SUPPORT DISPUTE TICKETS (REAL D1 CRUD) ====================
+      if (path === '/api/tickets' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM support_tickets ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/tickets' && method === 'POST') {
+        const { customer_name, customer_phone, category = 'General', subject } = await request.json().catch(() => ({}));
+        if (!customer_name || !customer_phone || !subject) return json({ error: 'Missing required ticket fields' }, 400);
+        const id = `TKT-${Math.floor(100 + Math.random() * 900)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO support_tickets (id, customer_name, customer_phone, category, subject, status, reply_text, created_at)
+          VALUES (?, ?, ?, ?, ?, 'Open', '', ?)
+        `).bind(id, customer_name, customer_phone, category, subject, now).run();
+        return json(await env.DB.prepare('SELECT * FROM support_tickets WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/tickets/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const { status = 'Resolved', reply_text = '' } = await request.json().catch(() => ({}));
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          UPDATE support_tickets
+          SET status = ?, reply_text = ?, resolved_at = ?
+          WHERE id = ?
+        `).bind(status, reply_text, now, id).run();
+        return json(await env.DB.prepare('SELECT * FROM support_tickets WHERE id = ?').bind(id).first());
+      }
+
+      // ==================== OPERATIONAL CITIES (REAL D1 CRUD) ====================
+      if (path === '/api/cities' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM operational_cities ORDER BY name ASC').all();
+        return json(results);
+      }
+
+      if (path === '/api/cities' && method === 'POST') {
+        const { name, min_order = 199, express_dispatch = 1 } = await request.json().catch(() => ({}));
+        if (!name) return json({ error: 'City name is required' }, 400);
+        const id = `city-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO operational_cities (id, name, min_order, express_dispatch, is_active, created_at)
+          VALUES (?, ?, ?, ?, 1, ?)
+        `).bind(id, name, Number(min_order), express_dispatch ? 1 : 0, now).run();
+        return json(await env.DB.prepare('SELECT * FROM operational_cities WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/cities/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const { is_active, min_order, express_dispatch } = await request.json().catch(() => ({}));
+        const existing = await env.DB.prepare('SELECT * FROM operational_cities WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'City not found' }, 404);
+
+        const newActive = is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active;
+        const newMin = min_order !== undefined ? Number(min_order) : existing.min_order;
+        const newExp = express_dispatch !== undefined ? (express_dispatch ? 1 : 0) : existing.express_dispatch;
+
+        await env.DB.prepare('UPDATE operational_cities SET is_active = ?, min_order = ?, express_dispatch = ? WHERE id = ?')
+          .bind(newActive, newMin, newExp, id).run();
+        return json(await env.DB.prepare('SELECT * FROM operational_cities WHERE id = ?').bind(id).first());
+      }
+
+      if (path.startsWith('/api/cities/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM operational_cities WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // ==================== HERO BANNERS (REAL D1 CRUD) ====================
+      if (path === '/api/banners' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM hero_banners ORDER BY sort_order ASC, created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/banners' && method === 'POST') {
+        const { title, subtitle, category = 'All Services', badge = 'Offer', image_url = '' } = await request.json().catch(() => ({}));
+        if (!title) return json({ error: 'Title is required' }, 400);
+        const id = `ban-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO hero_banners (id, title, subtitle, category, badge, image_url, is_active, sort_order, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?)
+        `).bind(id, title, subtitle || '', category, badge, image_url, now).run();
+        return json(await env.DB.prepare('SELECT * FROM hero_banners WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/banners/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const { is_active } = await request.json().catch(() => ({}));
+        await env.DB.prepare('UPDATE hero_banners SET is_active = ? WHERE id = ?').bind(is_active ? 1 : 0, id).run();
+        return json(await env.DB.prepare('SELECT * FROM hero_banners WHERE id = ?').bind(id).first());
+      }
+
+      if (path.startsWith('/api/banners/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM hero_banners WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // ==================== BROADCAST ANNOUNCEMENTS (REAL D1 CRUD) ====================
+      if (path === '/api/broadcast' && method === 'GET') {
+        const active = await env.DB.prepare('SELECT * FROM broadcast_announcements WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1').first();
+        return json(active || { message: 'Welcome to FixoHub Enterprise!', is_active: 0 });
+      }
+
+      if (path === '/api/broadcast' && method === 'POST') {
+        const { message, type = 'info', is_active = 1 } = await request.json().catch(() => ({}));
+        const id = `bc-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        // Deactivate old broadcasts
+        await env.DB.prepare('UPDATE broadcast_announcements SET is_active = 0').run();
+        await env.DB.prepare(`
+          INSERT INTO broadcast_announcements (id, message, type, target_audience, is_active, created_at)
+          VALUES (?, ?, ?, 'all', ?, ?)
+        `).bind(id, message, type, is_active ? 1 : 0, now).run();
+        return json(await env.DB.prepare('SELECT * FROM broadcast_announcements WHERE id = ?').bind(id).first(), 201);
+      }
+
+      // ==================== CUSTOMER REVIEWS (REAL D1 CRUD) ====================
+      if (path === '/api/reviews' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM reviews ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/reviews' && method === 'POST') {
+        const { service_id = 'srv-gen', service_name = 'General Service', customer_name, rating = 5, comment = '' } = await request.json().catch(() => ({}));
+        if (!customer_name || !comment) return json({ error: 'customer_name and comment are required' }, 400);
+        const id = `rev-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO reviews (id, service_id, service_name, customer_name, rating, comment, status, reply_text, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'Published', '', ?)
+        `).bind(id, service_id, service_name, customer_name, Number(rating), comment, now).run();
+        return json(await env.DB.prepare('SELECT * FROM reviews WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/reviews/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const { status, reply_text } = await request.json().catch(() => ({}));
+        const existing = await env.DB.prepare('SELECT * FROM reviews WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'Review not found' }, 404);
+
+        const newStatus = status !== undefined ? status : existing.status;
+        const newReply = reply_text !== undefined ? reply_text : existing.reply_text;
+        await env.DB.prepare('UPDATE reviews SET status = ?, reply_text = ? WHERE id = ?').bind(newStatus, newReply, id).run();
+        return json(await env.DB.prepare('SELECT * FROM reviews WHERE id = ?').bind(id).first());
+      }
+
+      if (path.startsWith('/api/reviews/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM reviews WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // ==================== IMAGE / PHOTO UPLOADER ====================
       if (path === '/api/upload' && method === 'POST') {
         const { data, filename = 'photo.jpg' } = await request.json().catch(() => ({}));
-        // If data is provided as base64 or URL, return usable URL
         return json({
           success: true,
           url: data && data.startsWith('data:') ? data : `https://images.unsplash.com/photo-1581092334651-ddf19d571e17?w=600&q=80`,
@@ -139,13 +434,31 @@ export default {
         });
       }
 
-      // ==================== CATEGORIES ====================
+      // ==================== CATEGORIES (FULL CRUD) ====================
       if (path === '/api/categories' && method === 'GET') {
         const { results } = await env.DB.prepare('SELECT * FROM categories ORDER BY sort_order ASC').all();
         return json(results);
       }
 
-      // ==================== SERVICES ====================
+      if (path === '/api/categories' && method === 'POST') {
+        const { name, slug, icon = 'Wrench', color = '#0079ff', tagline = '' } = await request.json().catch(() => ({}));
+        if (!name) return json({ error: 'Name is required' }, 400);
+        const autoSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const id = `cat-${autoSlug}`;
+        await env.DB.prepare(`
+          INSERT INTO categories (id, name, slug, icon, color, tagline, sort_order)
+          VALUES (?, ?, ?, ?, ?, ?, 99)
+        `).bind(id, name, autoSlug, icon, color, tagline).run();
+        return json(await env.DB.prepare('SELECT * FROM categories WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/categories/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM categories WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // ==================== SERVICES (FULL CRUD) ====================
       if (path === '/api/services' && method === 'GET') {
         const all = url.searchParams.get('all');
         const categoryId = url.searchParams.get('categoryId');
@@ -178,7 +491,7 @@ export default {
       }
 
       if (path === '/api/services' && method === 'POST') {
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
         const { category_id, name, description = '', price, original_price = null, duration_mins = 45, warranty_days = 30, includes = [], image_url = '', is_popular = 0 } = body;
         if (!category_id || !name || !price) return json({ error: 'category_id, name and price are required' }, 400);
 
@@ -197,7 +510,7 @@ export default {
         const id = path.split('/').pop();
         const existing = await env.DB.prepare('SELECT * FROM services WHERE id = ?').bind(id).first();
         if (!existing) return json({ error: 'Service not found' }, 404);
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
 
         const is_active = body.is_active !== undefined ? (body.is_active ? 1 : 0) : existing.is_active;
         const price = body.price !== undefined ? Number(body.price) : existing.price;
@@ -223,14 +536,14 @@ export default {
         return json({ deleted: true });
       }
 
-      // ==================== TECHNICIANS & PARTNERS ====================
+      // ==================== TECHNICIANS & PARTNERS (FULL CRUD) ====================
       if (path === '/api/technicians' && method === 'GET') {
         const { results } = await env.DB.prepare('SELECT * FROM technicians ORDER BY jobs_completed DESC').all();
         return json(results);
       }
 
       if (path === '/api/partner/login' && method === 'POST') {
-        const { phone } = await request.json();
+        const { phone } = await request.json().catch(() => ({}));
         const clean = String(phone || '').replace(/\s+/g, '');
         const { results } = await env.DB.prepare('SELECT * FROM technicians').all();
         const found = results.find(t => t.phone.replace(/\s+/g, '').includes(clean) || t.id === phone);
@@ -239,7 +552,7 @@ export default {
       }
 
       if (path === '/api/technicians' && method === 'POST') {
-        const { name, phone, specialty, city = 'Delhi NCR' } = await request.json();
+        const { name, phone, specialty, city = 'Delhi NCR' } = await request.json().catch(() => ({}));
         if (!name || !phone || !specialty) return json({ error: 'name, phone and specialty are required' }, 400);
         const id = `tech-${crypto.randomUUID().slice(0, 8)}`;
         await env.DB.prepare(`
@@ -253,13 +566,19 @@ export default {
         const id = path.split('/').pop();
         const existing = await env.DB.prepare('SELECT * FROM technicians WHERE id = ?').bind(id).first();
         if (!existing) return json({ error: 'Technician not found' }, 404);
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
         const is_available = body.is_available !== undefined ? (body.is_available ? 1 : 0) : existing.is_available;
         await env.DB.prepare('UPDATE technicians SET is_available = ? WHERE id = ?').bind(is_available, id).run();
         return json(await env.DB.prepare('SELECT * FROM technicians WHERE id = ?').bind(id).first());
       }
 
-      // ==================== BOOKINGS ====================
+      if (path.startsWith('/api/technicians/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM technicians WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // ==================== BOOKINGS (FULL CRUD) ====================
       if (path === '/api/bookings' && method === 'GET') {
         const techId = url.searchParams.get('technicianId');
         let sql = `
@@ -278,7 +597,7 @@ export default {
       }
 
       if (path === '/api/bookings' && method === 'POST') {
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
         const {
           customer_name, customer_phone, address, city = 'Delhi NCR',
           scheduled_date, scheduled_slot, payment_method = 'UPI / Cash on Visit',
@@ -299,6 +618,14 @@ export default {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
         `).bind(id, booking_code, customer_name, customer_phone, address, city, scheduled_date, scheduled_slot, payment_method, notes, JSON.stringify(items), total_amount, source, created_at).run();
 
+        // Also ensure customer exists in customers CRM
+        const cleanCustPhone = customer_phone.replace(/\s+/g, '');
+        await env.DB.prepare(`
+          INSERT INTO customers (id, name, phone, city, orders_count, total_spend, joined_at)
+          VALUES (?, ?, ?, ?, 1, ?, ?)
+          ON CONFLICT(phone) DO UPDATE SET orders_count = orders_count + 1, total_spend = total_spend + excluded.total_spend
+        `).bind(`cust-${crypto.randomUUID().slice(0, 8)}`, customer_name, cleanCustPhone, city, total_amount, created_at).run();
+
         const created = await env.DB.prepare('SELECT * FROM bookings WHERE id = ?').bind(id).first();
         return json({ ...created, items }, 201);
       }
@@ -307,7 +634,7 @@ export default {
         const id = path.split('/').pop();
         const existing = await env.DB.prepare('SELECT * FROM bookings WHERE id = ?').bind(id).first();
         if (!existing) return json({ error: 'Booking not found' }, 404);
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
         const status = body.status ?? existing.status;
         const technician_id = body.technician_id !== undefined ? (body.technician_id || null) : existing.technician_id;
 
@@ -322,6 +649,12 @@ export default {
         return json({ ...updated, items: JSON.parse(updated.items_json || '[]') });
       }
 
+      if (path.startsWith('/api/bookings/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM bookings WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
       // ==================== STATS ====================
       if (path === '/api/stats' && method === 'GET') {
         const totalBookings = (await env.DB.prepare('SELECT COUNT(*) as c FROM bookings').first()).c;
@@ -331,7 +664,16 @@ export default {
         const totalTechnicians = (await env.DB.prepare('SELECT COUNT(*) as c FROM technicians').first()).c;
         const availableTechnicians = (await env.DB.prepare('SELECT COUNT(*) as c FROM technicians WHERE is_available = 1').first()).c;
         const totalRevenue = (await env.DB.prepare("SELECT COALESCE(SUM(total_amount), 0) as rev FROM bookings WHERE status != 'cancelled'").first()).rev;
-        return json({ totalBookings, pendingBookings, completedBookings, activeServices, totalTechnicians, availableTechnicians, totalRevenue });
+        const pendingKyc = (await env.DB.prepare("SELECT COUNT(*) as c FROM kyc_verifications WHERE status = 'Pending'").first()).c;
+        const pendingPayouts = (await env.DB.prepare("SELECT COUNT(*) as c FROM partner_payouts WHERE status = 'Pending'").first()).c;
+        const totalCustomers = (await env.DB.prepare('SELECT COUNT(*) as c FROM customers').first()).c;
+        const openTickets = (await env.DB.prepare("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'Open'").first()).c;
+
+        return json({
+          totalBookings, pendingBookings, completedBookings,
+          activeServices, totalTechnicians, availableTechnicians,
+          totalRevenue, pendingKyc, pendingPayouts, totalCustomers, openTickets
+        });
       }
 
       // ==================== CUSTOM REQUESTS ====================
@@ -341,7 +683,7 @@ export default {
       }
 
       if (path === '/api/requests' && method === 'POST') {
-        const { customer_name = 'Guest User', title, category_name = 'General', description = '', min_budget = 200, max_budget = 1000 } = await request.json();
+        const { customer_name = 'Guest User', title, category_name = 'General', description = '', min_budget = 200, max_budget = 1000 } = await request.json().catch(() => ({}));
         if (!title) return json({ error: 'title is required' }, 400);
         const id = `req-${crypto.randomUUID().slice(0, 8)}`;
         const created_at = new Date().toISOString();
@@ -356,7 +698,7 @@ export default {
         const id = path.split('/').pop();
         const existing = await env.DB.prepare('SELECT * FROM custom_requests WHERE id = ?').bind(id).first();
         if (!existing) return json({ error: 'Request not found' }, 404);
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
         const status = body.status ?? existing.status;
         const bid_provider = body.bid_provider ?? existing.bid_provider;
         const bid_amount = body.bid_amount !== undefined ? Number(body.bid_amount) : existing.bid_amount;
@@ -373,7 +715,7 @@ export default {
       }
 
       if (path === '/api/promocodes' && method === 'POST') {
-        const { code, discount_percent, min_order = 299, max_discount = 500, valid_until = '2026-12-31' } = await request.json();
+        const { code, discount_percent, min_order = 299, max_discount = 500, valid_until = '2026-12-31' } = await request.json().catch(() => ({}));
         if (!code || !discount_percent) return json({ error: 'code and discount_percent required' }, 400);
         const id = `prm-${crypto.randomUUID().slice(0, 8)}`;
         await env.DB.prepare('INSERT INTO promocodes (id, code, discount_percent, min_order, max_discount, valid_until, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)')
@@ -394,7 +736,7 @@ export default {
       }
 
       if (path === '/api/chats' && method === 'POST') {
-        const { partner_id = 'tech-1', partner_name = 'Provider', sender = 'customer', message, booking_code = null } = await request.json();
+        const { partner_id = 'tech-1', partner_name = 'Provider', sender = 'customer', message, booking_code = null } = await request.json().catch(() => ({}));
         if (!message) return json({ error: 'message required' }, 400);
         const id = `msg-${crypto.randomUUID().slice(0, 8)}`;
         const created_at = new Date().toISOString();
