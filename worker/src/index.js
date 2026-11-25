@@ -36,32 +36,37 @@ export default {
 
       // ==================== OTP SYSTEM APIS ====================
       if (path === '/api/otp/send' && method === 'POST') {
-        const { phone, purpose = 'login' } = await request.json();
+        const body = await request.json().catch(() => ({}));
+        const phone = body.phone;
+        const purpose = body.purpose || 'login';
         if (!phone) return json({ error: 'Phone number is required' }, 400);
 
+        const cleanPhone = String(phone).replace(/\s+/g, '');
         // Generate 4-digit OTP
         const otp = String(Math.floor(1000 + Math.random() * 9000));
         const expiresAt = Date.now() + 5 * 60 * 1000; // 5 mins
-        OTP_STORE.set(phone.replace(/\s+/g, ''), { otp, expiresAt, purpose });
+        OTP_STORE.set(cleanPhone, { otp, expiresAt, purpose });
 
         return json({
           success: true,
           message: `OTP sent successfully to ${phone}`,
-          phone,
+          phone: cleanPhone,
           otp, // returned for seamless instant testing / demo experience
           expires_in_seconds: 300
         });
       }
 
       if (path === '/api/otp/verify' && method === 'POST') {
-        const { phone, otp } = await request.json();
+        const body = await request.json().catch(() => ({}));
+        const { phone, otp } = body;
         if (!phone || !otp) return json({ error: 'Phone and OTP are required' }, 400);
 
-        const cleanPhone = phone.replace(/\s+/g, '');
+        const cleanPhone = String(phone).replace(/\s+/g, '');
+        const enteredOtp = String(otp).trim();
         const record = OTP_STORE.get(cleanPhone);
 
         // Universal master demo OTP '1234' or exact generated OTP
-        if (otp === '1234' || (record && record.otp === otp && Date.now() < record.expiresAt)) {
+        if (enteredOtp === '1234' || (record && record.otp === enteredOtp && Date.now() < record.expiresAt)) {
           OTP_STORE.delete(cleanPhone);
           return json({
             success: true,
