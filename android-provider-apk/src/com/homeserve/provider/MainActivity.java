@@ -98,7 +98,7 @@ public class MainActivity extends Activity {
         col.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView title = new TextView(this);
-        title.setText("eDemand Partner");
+        title.setText("FixoHub Partner");
         title.setTextColor(Color.WHITE);
         title.setTextSize(19);
         title.setTypeface(null, Typeface.BOLD);
@@ -269,7 +269,7 @@ public class MainActivity extends Activity {
         kpi.setBackground(roundedBg(Color.parseColor("#0079FF"), 14, 0));
         kpi.setPadding(dp(16), dp(14), dp(16), dp(14));
         TextView planTv = new TextView(this);
-        planTv.setText("eDemand Provider • Essential Active");
+        planTv.setText("FixoHub Provider • Active");
         planTv.setTextColor(Color.parseColor("#FFD000"));
         planTv.setTypeface(null, Typeface.BOLD);
         planTv.setTextSize(12);

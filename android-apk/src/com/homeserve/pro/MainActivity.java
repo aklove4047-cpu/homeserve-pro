@@ -192,7 +192,7 @@ public class MainActivity extends Activity {
         titleCol.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView title = new TextView(this);
-        title.setText("eDemand");
+        title.setText("FixoHub");
         title.setTextColor(Color.WHITE);
         title.setTextSize(19);
         title.setTypeface(null, Typeface.BOLD);

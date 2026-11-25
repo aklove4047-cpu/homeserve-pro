@@ -90,8 +90,8 @@ export default function App() {
       }}>
         <div style={{ background: '#fff', borderRadius: 8, padding: 32, width: '100%', maxWidth: 430, boxShadow: '0 20px 50px rgba(0,0,0,0.28)' }}>
           <div style={{ textAlign: 'center', marginBottom: 18 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#0079ff', color: '#fff', display: 'inline-grid', placeItems: 'center', fontWeight: 800, fontSize: '1.25rem', marginBottom: 8 }}>eD</div>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0d0d0d' }}>eDemand</h2>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#0079ff', color: '#fff', display: 'inline-grid', placeItems: 'center', fontWeight: 800, fontSize: '1.25rem', marginBottom: 8 }}>FH</div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0d0d0d' }}>FixoHub</h2>
             <p style={{ fontSize: '0.82rem', color: '#64748b' }}>Provider • Partner Login</p>
           </div>
 
@@ -122,7 +122,7 @@ export default function App() {
           </div>
 
           <div style={{ textAlign: 'center', marginTop: 14, fontSize: '0.74rem', color: '#94a3b8' }}>
-            Copyright &copy; 2026 eDemand. All rights reserved.
+            Copyright &copy; 2026 FixoHub. All rights reserved.
           </div>
         </div>
       </div>

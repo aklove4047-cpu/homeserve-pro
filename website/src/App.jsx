@@ -24,7 +24,7 @@ const TIME_SLOTS = [
 const CITIES = ['Delhi NCR', 'Mumbai', 'Bengaluru', 'Hyderabad', 'Pune', 'Jaipur'];
 
 const FAQS = [
-  { q: 'What is HomeServe eDemand?', a: 'An on-demand multi-provider marketplace for Laptop, Mobile, 4K TV, Tech Accessories, AC, Plumbing, Electrician, and Home Cleaning services.' },
+  { q: 'What is FixoHub?', a: 'An on-demand multi-provider marketplace for Laptop, Mobile, 4K TV, Tech Accessories, AC, Plumbing, Electrician, and Home Cleaning services.' },
   { q: 'How do I book a service or gadget repair?', a: 'Select any service or accessory, add to Cart, pick your date & time slot, and confirm your booking in 30 seconds.' },
   { q: 'Are providers verified and covered by warranty?', a: 'Yes! Every technician is background-verified and services include up to 365-day replacement or service warranty.' }
 ];
@@ -129,10 +129,10 @@ export default function App() {
         <div className="container">
           <div className="header-top">
             <a href="#" className="brand">
-              <div className="brand-icon">eD</div>
+              <div className="brand-icon">FH</div>
               <div className="brand-text">
-                <strong>eDemand</strong>
-                <span>Home &amp; Tech Services</span>
+                <strong>FixoHub</strong>
+                <span>Home service</span>
               </div>
             </a>
 
@@ -203,20 +203,11 @@ export default function App() {
                   Book Now
                 </button>
                 <a
-                  href="/HomeServePro.apk"
-                  download
+                  href="#services-section"
                   className="btn"
                   style={{ background: 'transparent', color: '#fff', border: '1.5px solid #fff', textDecoration: 'none' }}
                 >
-                  <Download size={16} /> Customer APK
-                </a>
-                <a
-                  href="/HomeServeProvider.apk"
-                  download
-                  className="btn"
-                  style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.45)', textDecoration: 'none' }}
-                >
-                  <Briefcase size={16} /> Provider APK
+                  Explore Services
                 </a>
               </div>
             </div>
@@ -300,16 +291,17 @@ export default function App() {
             <div>
               <h2 style={{ fontSize: '1.6rem', marginBottom: 6 }}>Your Search for Reliable Services Starts Here</h2>
               <p style={{ opacity: 0.9, fontSize: '0.94rem' }}>
-                Download our Customer &amp; Provider Android APKs or book directly online in {city}.
+                Book verified professionals in {city} for doorstep repairs, installations &amp; home care.
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <a href="/HomeServePro.apk" download className="btn" style={{ background: '#0d0d0d', color: '#fff', textDecoration: 'none' }}>
-                Get Customer APK ↗
-              </a>
-              <a href="/HomeServeProvider.apk" download className="btn btn-yellow" style={{ textDecoration: 'none' }}>
-                Get Provider APK ↗
-              </a>
+            <div>
+              <button
+                className="btn"
+                style={{ background: '#0d0d0d', color: '#fff' }}
+                onClick={() => document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' })}
+              >
+                Get Started &nearr;
+              </button>
             </div>
           </div>
         </div>
@@ -432,7 +424,7 @@ export default function App() {
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 26 }}>
             <h2 style={{ fontSize: '1.6rem', marginBottom: 6 }}>Book Trusted Services in Just a Few Simple Steps</h2>
-            <p style={{ color: '#64748b' }}>Fast, transparent, and backed by eDemand service warranty</p>
+            <p style={{ color: '#64748b' }}>Fast, transparent, and backed by FixoHub service warranty</p>
           </div>
           <div className="steps-grid">
             {[
@@ -521,8 +513,8 @@ export default function App() {
         <div className="container footer-grid">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div className="brand-icon">eD</div>
-              <strong style={{ color: '#fff', fontSize: '1.2rem' }}>eDemand</strong>
+              <div className="brand-icon">FH</div>
+              <strong style={{ color: '#fff', fontSize: '1.2rem' }}>FixoHub</strong>
             </div>
             <p style={{ fontSize: '0.85rem', color: '#a3a3a3', marginBottom: 14 }}>
               On-Demand Home Services, Laptop, Mobile, TV &amp; Accessories Marketplace.
@@ -546,7 +538,7 @@ export default function App() {
           <div>
             <h4 style={{ color: '#fff', marginBottom: 6 }}>Contact Us</h4>
             <a href="tel:+919876543210">+91 98765 43210</a>
-            <a href="mailto:support@homeserve-edemand.in">support@homeserve-edemand.in</a>
+            <a href="mailto:support@fixohub.in">support@fixohub.in</a>
             <span style={{ display: 'block', marginTop: 8, fontSize: '0.84rem', color: '#a3a3a3' }}>Mon–Sun: 8:00 AM – 9:00 PM</span>
           </div>
         </div>
