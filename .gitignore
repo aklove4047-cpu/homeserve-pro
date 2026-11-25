@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+backend/data/*.db*
+android-apk/build/
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+*.log
