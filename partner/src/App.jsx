@@ -79,39 +79,50 @@ export default function App() {
 
   if (!partner) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #0277fa 100%)', padding: 20 }}>
-        <div style={{ background: '#fff', borderRadius: 18, padding: 32, width: '100%', maxWidth: 430, boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 11, background: '#0277fa', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800 }}>eD</div>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Partner / Provider Login</h2>
-              <p style={{ fontSize: '0.82rem', color: '#64748b' }}>HomeServe eDemand Partner Portal</p>
-            </div>
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        background: 'linear-gradient(120deg, rgba(15,23,42,0.72) 0%, rgba(0,121,255,0.45) 100%), url(/images/laptop.jpg) center/cover no-repeat',
+        padding: '28px 5vw',
+        fontFamily: 'Nunito, "Segoe UI", sans-serif'
+      }}>
+        <div style={{ background: '#fff', borderRadius: 8, padding: 32, width: '100%', maxWidth: 430, boxShadow: '0 20px 50px rgba(0,0,0,0.28)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 18 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#0079ff', color: '#fff', display: 'inline-grid', placeItems: 'center', fontWeight: 800, fontSize: '1.25rem', marginBottom: 8 }}>eD</div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0d0d0d' }}>eDemand</h2>
+            <p style={{ fontSize: '0.82rem', color: '#64748b' }}>Provider • Partner Login</p>
           </div>
 
           <form onSubmit={(e) => { e.preventDefault(); loginPartner(phoneInput); }} className="form-grid">
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Registered Mobile Number</label>
-            <input required value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="+91 98765 43210" />
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12 }}>
-              <Briefcase size={17} /> Sign In as Partner
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Email or Phone number</label>
+            <input required value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="Email or phone" />
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, borderRadius: 8, background: '#0079ff' }}>
+              Log in to Portal &rarr;
             </button>
           </form>
 
-          <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', marginBottom: 8 }}>1-Click Demo Partner Accounts:</div>
+          <div style={{ textAlign: 'center', margin: '14px 0 8px', fontSize: '0.78rem', color: '#64748b' }}>Access other panels</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <a href="/admin/" className="btn btn-primary" style={{ justifyContent: 'center', textDecoration: 'none', background: '#0079ff', fontSize: '0.8rem' }}>Login as Admin</a>
+            <a href="/" className="btn btn-outline" style={{ justifyContent: 'center', textDecoration: 'none', fontSize: '0.8rem' }}>Customer Site</a>
+          </div>
+
+          <div style={{ marginTop: 14, background: '#0079ff', color: '#fff', borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 800, marginBottom: 6 }}>PROVIDER LOGIN (1-CLICK DEMO)</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {partnersList.slice(0, 4).map(p => (
-                <button key={p.id} className="btn btn-outline" style={{ justifyContent: 'space-between' }} onClick={() => loginPartner(p.id)}>
+              {partnersList.slice(0, 3).map(p => (
+                <button key={p.id} type="button" onClick={() => loginPartner(p.id)} style={{ background: '#fff', color: '#0079ff', border: 'none', borderRadius: 6, padding: '7px 10px', fontWeight: 700, fontSize: '0.78rem', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
                   <span>{p.name} ({p.specialty})</span>
-                  <span style={{ color: '#0277fa', fontSize: '0.78rem' }}>Login →</span>
+                  <span>Login &rarr;</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 18, fontSize: '0.82rem' }}>
-            <a href="/" style={{ color: '#0277fa', textDecoration: 'none' }}>← Customer Website</a>
-            <a href="/admin/" style={{ color: '#0277fa', textDecoration: 'none' }}>Admin Login →</a>
+          <div style={{ textAlign: 'center', marginTop: 14, fontSize: '0.74rem', color: '#94a3b8' }}>
+            Copyright &copy; 2026 eDemand. All rights reserved.
           </div>
         </div>
       </div>

@@ -256,19 +256,29 @@ public class MainActivity extends Activity {
         topRow.addView(logoutBtn);
         col.addView(topRow);
 
-        // Earnings Summary
+        // Earnings & Counters Summary (eDemand Provider style)
         int earnings = 0;
+        int activeCount = 0;
+        int doneCount = 0;
         for (JobItem j : jobs) {
-            if ("completed".equals(j.status)) earnings += j.total;
+            if ("completed".equals(j.status)) { earnings += j.total; doneCount++; }
+            else if (!"cancelled".equals(j.status)) activeCount++;
         }
         LinearLayout kpi = new LinearLayout(this);
-        kpi.setBackground(roundedBg(Color.parseColor("#0277FA"), 14, 0));
+        kpi.setOrientation(LinearLayout.VERTICAL);
+        kpi.setBackground(roundedBg(Color.parseColor("#0079FF"), 14, 0));
         kpi.setPadding(dp(16), dp(14), dp(16), dp(14));
+        TextView planTv = new TextView(this);
+        planTv.setText("eDemand Provider • Essential Active");
+        planTv.setTextColor(Color.parseColor("#FFD000"));
+        planTv.setTypeface(null, Typeface.BOLD);
+        planTv.setTextSize(12);
         TextView kpiTv = new TextView(this);
-        kpiTv.setText("Total Jobs: " + jobs.size() + "   •   Completed Earnings: ₹" + earnings);
+        kpiTv.setText("Active: " + activeCount + "  •  Completed: " + doneCount + "  •  Earnings: ₹" + earnings);
         kpiTv.setTextColor(Color.WHITE);
         kpiTv.setTypeface(null, Typeface.BOLD);
         kpiTv.setTextSize(14);
+        kpi.addView(planTv);
         kpi.addView(kpiTv);
         col.addView(kpi);
 

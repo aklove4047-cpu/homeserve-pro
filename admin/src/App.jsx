@@ -120,30 +120,54 @@ export default function App() {
 
   if (!authed) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #003a8c 100%)', padding: 20 }}>
-        <div style={{ background: '#fff', borderRadius: 18, padding: 32, width: '100%', maxWidth: 410, boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 11, background: '#0277fa', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800 }}>eD</div>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Admin Panel Login</h2>
-              <p style={{ fontSize: '0.82rem', color: '#64748b' }}>HomeServe eDemand Super Admin</p>
-            </div>
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        background: 'linear-gradient(120deg, rgba(15,23,42,0.72) 0%, rgba(0,121,255,0.45) 100%), url(/images/ac.jpg) center/cover no-repeat',
+        padding: '28px 5vw',
+        fontFamily: 'Nunito, "Segoe UI", sans-serif'
+      }}>
+        <div style={{ background: '#fff', borderRadius: 8, padding: 32, width: '100%', maxWidth: 420, boxShadow: '0 20px 50px rgba(0,0,0,0.28)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#0079ff', color: '#fff', display: 'inline-grid', placeItems: 'center', fontWeight: 800, fontSize: '1.25rem', marginBottom: 8 }}>eD</div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0d0d0d' }}>eDemand</h2>
+            <p style={{ fontSize: '0.82rem', color: '#64748b' }}>Home service • Admin Login</p>
           </div>
           <form onSubmit={handleLogin} className="form-grid">
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Phone / Email</label>
-            <input required value={loginPhone} onChange={e => setLoginPhone(e.target.value)} />
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Password</label>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Phone Number</label>
+            <input required placeholder="Please enter registered phone number" value={loginPhone} onChange={e => setLoginPhone(e.target.value)} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Password</label>
+              <span style={{ fontSize: '0.78rem', color: '#0079ff', fontWeight: 600 }}>Forgot Password ?</span>
+            </div>
             <input required type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} />
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, marginTop: 6 }}>
-              <ShieldCheck size={17} /> Sign In to Admin Panel
-            </button>
-            <button type="button" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={handleLogin}>
-              1-Click Demo Admin Login
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: '#475569' }}>
+              <input type="checkbox" defaultChecked style={{ width: 'auto' }} /> Remember me
+            </label>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, borderRadius: 8, background: '#0079ff' }}>
+              Log in to Portal &rarr;
             </button>
           </form>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 18, fontSize: '0.82rem' }}>
-            <a href="/" style={{ color: '#0277fa', textDecoration: 'none' }}>← Customer Website</a>
-            <a href="/partner/" style={{ color: '#0277fa', textDecoration: 'none' }}>Partner Login →</a>
+
+          <div style={{ textAlign: 'center', margin: '16px 0 10px', fontSize: '0.78rem', color: '#64748b' }}>Access other panels</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <a href="/partner/" className="btn btn-primary" style={{ justifyContent: 'center', textDecoration: 'none', background: '#0079ff', fontSize: '0.8rem' }}>Login as Provider</a>
+            <a href="/" className="btn btn-outline" style={{ justifyContent: 'center', textDecoration: 'none', fontSize: '0.8rem' }}>Customer Site</a>
+          </div>
+
+          <div style={{ marginTop: 16, background: '#0079ff', color: '#fff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.78rem' }}>
+              <div style={{ fontWeight: 800, letterSpacing: '0.04em' }}>ADMIN LOGIN (DEMO)</div>
+              <div>Mobile: +91 9876543210 | Pass: 12345678</div>
+            </div>
+            <button type="button" onClick={handleLogin} style={{ background: '#fff', color: '#0079ff', border: 'none', borderRadius: 6, padding: '6px 10px', fontWeight: 700, fontSize: '0.76rem' }}>
+              Auto Login
+            </button>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 14, fontSize: '0.74rem', color: '#94a3b8' }}>
+            Copyright &copy; 2026 eDemand. All rights reserved.
           </div>
         </div>
       </div>

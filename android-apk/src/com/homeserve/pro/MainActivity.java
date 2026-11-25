@@ -192,13 +192,13 @@ public class MainActivity extends Activity {
         titleCol.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView title = new TextView(this);
-        title.setText("HomeServe Pro");
+        title.setText("eDemand");
         title.setTextColor(Color.WHITE);
         title.setTextSize(19);
         title.setTypeface(null, Typeface.BOLD);
 
         statusSubtitle = new TextView(this);
-        statusSubtitle.setText("Offline Catalog Mode");
+        statusSubtitle.setText("Home & Tech Services");
         statusSubtitle.setTextColor(Color.parseColor("#94A3B8"));
         statusSubtitle.setTextSize(12);
 
@@ -208,7 +208,7 @@ public class MainActivity extends Activity {
         Button syncBtn = new Button(this);
         syncBtn.setText("Sync");
         syncBtn.setTextColor(Color.WHITE);
-        syncBtn.setBackground(roundedBg(Color.parseColor("#0277FA"), 8, 0));
+        syncBtn.setBackground(roundedBg(Color.parseColor("#0079FF"), 8, 0));
         syncBtn.setPadding(dp(14), dp(6), dp(14), dp(6));
         syncBtn.setOnClickListener(v -> syncWithServer(true));
 
@@ -231,7 +231,7 @@ public class MainActivity extends Activity {
         bottomBar.setElevation(dp(6));
         bottomBar.setPadding(dp(8), dp(8), dp(8), dp(8));
 
-        tabServicesBtn = makeNavBtn("Services", 0);
+        tabServicesBtn = makeNavBtn("Explore", 0);
         tabCartBtn = makeNavBtn("Cart (0)", 1);
         tabBookingsBtn = makeNavBtn("Bookings", 2);
 
@@ -279,6 +279,30 @@ public class MainActivity extends Activity {
     }
 
     private void renderServicesTab() {
+        // eDemand Blue Hero Banner
+        LinearLayout heroBanner = new LinearLayout(this);
+        heroBanner.setOrientation(LinearLayout.VERTICAL);
+        heroBanner.setBackground(roundedBg(Color.parseColor("#0079FF"), 14, 0));
+        heroBanner.setPadding(dp(16), dp(14), dp(16), dp(14));
+        LinearLayout.LayoutParams hLp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        hLp.setMargins(dp(14), dp(10), dp(14), dp(4));
+        heroBanner.setLayoutParams(hLp);
+        TextView heroTitle = new TextView(this);
+        heroTitle.setText("Quick & Reliable Services at Your Doorstep!");
+        heroTitle.setTextColor(Color.WHITE);
+        heroTitle.setTextSize(15);
+        heroTitle.setTypeface(null, Typeface.BOLD);
+        TextView heroSub = new TextView(this);
+        heroSub.setText("Laptop • Mobile • 4K TV • Accessories • AC & Home");
+        heroSub.setTextColor(Color.parseColor("#FFD000"));
+        heroSub.setTextSize(12);
+        heroSub.setTypeface(null, Typeface.BOLD);
+        heroBanner.addView(heroTitle);
+        heroBanner.addView(heroSub);
+        contentContainer.addView(heroBanner);
+
         // Search Box
         EditText searchBox = new EditText(this);
         searchBox.setHint("Search AC, TV, Mobile, Laptop, Plumbing...");
@@ -336,6 +360,45 @@ public class MainActivity extends Activity {
         listLayout.setPadding(dp(14), dp(6), dp(14), dp(16));
         scroll.addView(listLayout);
         contentContainer.addView(scroll);
+
+        // Floating Blue Bottom Cart Bar (eDemand Customer App style)
+        int cartTotal = 0;
+        int cartCount = 0;
+        for (ServiceItem s : allServices) {
+            if (cartQty.containsKey(s.id)) {
+                int q = cartQty.get(s.id);
+                cartCount += q;
+                cartTotal += s.price * q;
+            }
+        }
+        if (cartCount > 0) {
+            LinearLayout cartBar = new LinearLayout(this);
+            cartBar.setOrientation(LinearLayout.HORIZONTAL);
+            cartBar.setBackgroundColor(Color.parseColor("#0079FF"));
+            cartBar.setPadding(dp(16), dp(10), dp(16), dp(10));
+            cartBar.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView cTv = new TextView(this);
+            cTv.setText("₹" + cartTotal + "  |  " + cartCount + " service(s)");
+            cTv.setTextColor(Color.WHITE);
+            cTv.setTypeface(null, Typeface.BOLD);
+            cTv.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            Button goBtn = new Button(this);
+            goBtn.setText("Check Out >");
+            goBtn.setAllCaps(false);
+            goBtn.setTextColor(Color.parseColor("#0079FF"));
+            goBtn.setTypeface(null, Typeface.BOLD);
+            goBtn.setBackground(roundedBg(Color.WHITE, 8, 0));
+            goBtn.setOnClickListener(v -> {
+                currentTab = 1;
+                renderCurrentTab();
+            });
+
+            cartBar.addView(cTv);
+            cartBar.addView(goBtn);
+            contentContainer.addView(cartBar);
+        }
 
         Runnable populateList = () -> {
             listLayout.removeAllViews();
