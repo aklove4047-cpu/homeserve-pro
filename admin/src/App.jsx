@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, CalendarCheck, Wrench, Users, Plus,
-  RefreshCw, Trash2, CheckCircle, XCircle, ExternalLink
+  RefreshCw, Trash2, CheckCircle, XCircle, ExternalLink, LogOut, ShieldCheck
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 const STATUSES = ['pending', 'confirmed', 'assigned', 'in_progress', 'completed', 'cancelled'];
 
 export default function App() {
+  const [authed, setAuthed] = useState(() => localStorage.getItem('hs_admin_auth') === '1');
+  const [loginPhone, setLoginPhone] = useState('+91 9876543210');
+  const [loginPass, setLoginPass] = useState('12345678');
   const [tab, setTab] = useState('overview');
   const [stats, setStats] = useState({});
   const [bookings, setBookings] = useState([]);
@@ -109,6 +112,44 @@ export default function App() {
     ? bookings
     : bookings.filter(b => b.status === statusFilter);
 
+  const handleLogin = (e) => {
+    e.preventDefault();
+    localStorage.setItem('hs_admin_auth', '1');
+    setAuthed(true);
+  };
+
+  if (!authed) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #003a8c 100%)', padding: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 18, padding: 32, width: '100%', maxWidth: 410, boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 11, background: '#0277fa', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800 }}>eD</div>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Admin Panel Login</h2>
+              <p style={{ fontSize: '0.82rem', color: '#64748b' }}>HomeServe eDemand Super Admin</p>
+            </div>
+          </div>
+          <form onSubmit={handleLogin} className="form-grid">
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Phone / Email</label>
+            <input required value={loginPhone} onChange={e => setLoginPhone(e.target.value)} />
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Password</label>
+            <input required type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} />
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, marginTop: 6 }}>
+              <ShieldCheck size={17} /> Sign In to Admin Panel
+            </button>
+            <button type="button" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={handleLogin}>
+              1-Click Demo Admin Login
+            </button>
+          </form>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 18, fontSize: '0.82rem' }}>
+            <a href="/" style={{ color: '#0277fa', textDecoration: 'none' }}>← Customer Website</a>
+            <a href="/partner/" style={{ color: '#0277fa', textDecoration: 'none' }}>Partner Login →</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -133,10 +174,16 @@ export default function App() {
           <Users size={18} /> Technicians ({technicians.length})
         </button>
 
-        <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <a href="/" className="nav-btn" style={{ textDecoration: 'none' }}>
             <ExternalLink size={17} /> Customer Website
           </a>
+          <a href="/partner/" className="nav-btn" style={{ textDecoration: 'none' }}>
+            <ExternalLink size={17} /> Partner Panel
+          </a>
+          <button className="nav-btn" onClick={() => { localStorage.removeItem('hs_admin_auth'); setAuthed(false); }}>
+            <LogOut size={17} /> Logout
+          </button>
         </div>
       </aside>
 

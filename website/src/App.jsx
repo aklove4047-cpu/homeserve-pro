@@ -3,7 +3,7 @@ import {
   Wind, Tv, Smartphone, Laptop, Refrigerator, Zap, Wrench, Sparkles,
   Hammer, Paintbrush, ShieldCheck, Droplets, Search, ShoppingBag,
   Star, Clock, Shield, CheckCircle2, X, MapPin, ClipboardList, Plus, Minus,
-  Cpu, Download
+  Cpu, Download, Briefcase
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -26,6 +26,7 @@ const CITIES = ['Delhi NCR', 'Mumbai', 'Bengaluru', 'Hyderabad', 'Pune', 'Jaipur
 export default function App() {
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
+  const [providers, setProviders] = useState([]);
   const [selectedCat, setSelectedCat] = useState('all');
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('Delhi NCR');
@@ -49,10 +50,12 @@ export default function App() {
   useEffect(() => {
     Promise.all([
       fetch(`${API}/api/categories`).then(r => r.json()),
-      fetch(`${API}/api/services`).then(r => r.json())
-    ]).then(([cats, srvs]) => {
+      fetch(`${API}/api/services`).then(r => r.json()),
+      fetch(`${API}/api/technicians`).then(r => r.json())
+    ]).then(([cats, srvs, techs]) => {
       setCategories(cats);
       setServices(srvs);
+      setProviders(techs);
     }).catch(console.error);
   }, []);
 
@@ -124,27 +127,25 @@ export default function App() {
 
   return (
     <div>
-      {/* Navbar */}
+      {/* eDemand-style Navbar */}
       <header className="navbar">
         <div className="container navbar-inner">
           <a href="#" className="brand">
-            <div className="brand-badge">HS</div>
-            <span>HomeServe Pro</span>
+            <div className="brand-badge">eD</div>
+            <span>HomeServe <span style={{ color: '#0277fa' }}>eDemand</span></span>
           </a>
 
-          <div className="search-wrap">
-            <Search size={18} color="#64748b" />
-            <input
-              type="text"
-              placeholder="Search AC service, TV mount, mobile screen, laptop SSD..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          <nav className="nav-links">
+            <a href="#categories" className="nav-link">Categories</a>
+            <a href="#providers" className="nav-link">Providers</a>
+            <a href="#services-section" className="nav-link">Services</a>
+            <a href="/partner/" className="nav-link" style={{ color: '#0277fa' }}>Partner Panel</a>
+            <a href="/admin/" className="nav-link">Admin</a>
+          </nav>
 
           <div className="nav-actions">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <MapPin size={16} color="#4f46e5" />
+              <MapPin size={16} color="#0277fa" />
               <select className="city-select" value={city} onChange={e => setCity(e.target.value)}>
                 {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -152,7 +153,7 @@ export default function App() {
 
             <button className="btn btn-outline" onClick={loadBookings}>
               <ClipboardList size={17} />
-              <span>My Bookings</span>
+              <span>Bookings</span>
             </button>
 
             <button className="btn btn-primary" onClick={() => { setBookingSuccess(null); setCartOpen(true); }}>
@@ -163,77 +164,84 @@ export default function App() {
         </div>
       </header>
 
-      {/* Hero */}
+      {/* eDemand Split Hero */}
       <section className="hero">
         <div className="container hero-grid">
           <div>
             <div className="hero-pill">
               <Shield size={14} />
-              <span>Verified Technicians • Up to 90-Day Warranty</span>
+              <span>Multi-Vendor On-Demand Services • Verified Providers</span>
             </div>
-            <h1>Home services, electronics &amp; repairs at your doorstep.</h1>
+            <h1>
+              Book Trusted <span>Home &amp; Tech</span> Services Near You.
+            </h1>
             <p>
-              Book trusted experts for AC service, LED TV repair, mobile screen replacement,
-              laptop upgrades, plumbing, electrician, deep cleaning and more in {city}.
+              Compare verified providers in {city} for Laptop &amp; MacBook repair, Mobile OLED screens,
+              4K Smart TVs, Tech Accessories, AC cooling, Plumbing &amp; Home Care.
             </p>
+
+            <div className="hero-search-bar">
+              <Search size={19} color="#64748b" />
+              <input
+                type="text"
+                placeholder="Search Laptop SSD, iPhone screen, 4K TV, AC service, GaN charger..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={() => document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' })}
+              >
+                Find Services
+              </button>
+            </div>
+
             <div className="hero-stats">
               <div className="hero-stat">
                 <strong>4.9 ★</strong>
-                <span>Average Service Rating</span>
+                <span>Verified Rating</span>
               </div>
               <div className="hero-stat">
-                <strong>30 Mins</strong>
-                <span>Express Arrival</span>
+                <strong>{providers.length}+ Pros</strong>
+                <span>Active Providers</span>
               </div>
               <div className="hero-stat">
-                <strong>50,000+</strong>
-                <span>Happy Homes</span>
+                <strong>{services.length}+</strong>
+                <span>Services &amp; Gadgets</span>
               </div>
-              <a
-                href="/HomeServePro.apk"
-                download
-                className="btn"
-                style={{ background: 'rgba(255,255,255,0.16)', color: '#fff', border: '1px solid rgba(255,255,255,0.28)', textDecoration: 'none' }}
-              >
-                <Download size={16} />
-                <span>Download Android APK</span>
-              </a>
             </div>
           </div>
 
           <div className="hero-card">
-            <h3>Popular Instant Repairs</h3>
-            <div className="quick-grid">
-              {[
-                { id: 'cat-ac', title: 'AC Service & Gas', sub: 'Starts ₹299' },
-                { id: 'cat-tv', title: 'TV Repair & Mount', sub: 'Starts ₹349' },
-                { id: 'cat-mobile', title: 'Mobile Screen Fix', sub: '30-min doorstep' },
-                { id: 'cat-laptop', title: 'Laptop SSD & Clean', sub: 'Starts ₹399' }
-              ].map(q => (
-                <button
-                  key={q.id}
-                  className="quick-item"
-                  onClick={() => {
-                    setSelectedCat(q.id);
-                    document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                >
-                  <strong>{q.title}</strong>
-                  <span>{q.sub}</span>
-                </button>
-              ))}
-            </div>
+            <h3>Get Our Mobile Apps (APK)</h3>
+            <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: 10 }}>
+              Install the Customer or Provider Android APK directly on your phone.
+            </p>
+            <a href="/HomeServePro.apk" download className="app-dl-card">
+              <div>
+                <strong style={{ display: 'block', fontSize: '0.94rem' }}>Customer App APK</strong>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Book AC, Laptop, Mobile, TV &amp; Accessories</span>
+              </div>
+              <Download size={20} color="#0277fa" />
+            </a>
+            <a href="/HomeServeProvider.apk" download className="app-dl-card">
+              <div>
+                <strong style={{ display: 'block', fontSize: '0.94rem' }}>Provider / Partner APK</strong>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Accept jobs, manage earnings &amp; status</span>
+              </div>
+              <Briefcase size={20} color="#0277fa" />
+            </a>
           </div>
         </div>
       </section>
 
       {/* Categories */}
-      <section className="section">
+      <section className="section" id="categories">
         <div className="container">
           <div className="section-header">
             <div>
-              <h2>What are you looking for?</h2>
-              <p>Choose from 12+ categories of home &amp; gadget services</p>
+              <h2>Explore Categories</h2>
+              <p>Select a category to filter doorstep services and gadgets</p>
             </div>
             {selectedCat !== 'all' && (
               <button className="btn btn-outline" onClick={() => setSelectedCat('all')}>
@@ -264,6 +272,49 @@ export default function App() {
         </div>
       </section>
 
+      {/* Top Service Providers (eDemand Multi-Provider Section) */}
+      <section className="section" id="providers" style={{ paddingTop: 6 }}>
+        <div className="container">
+          <div className="section-header">
+            <div>
+              <h2>Top Verified Providers</h2>
+              <p>Trusted professionals and partner workshops available in {city}</p>
+            </div>
+            <a href="/partner/" className="btn btn-outline" style={{ textDecoration: 'none' }}>
+              Partner Login / Join
+            </a>
+          </div>
+
+          <div className="providers-grid">
+            {providers.map(p => (
+              <div key={p.id} className="provider-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div className="provider-avatar" style={{ background: p.avatar_color || '#0277fa' }}>
+                    {p.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.98rem', fontWeight: 700 }}>{p.name}</h4>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{p.specialty} • {p.city}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                  <span className="rating-pill">
+                    <Star size={14} fill="#f59e0b" color="#f59e0b" /> {p.rating} ({p.jobs_completed} jobs)
+                  </span>
+                  <span style={{
+                    padding: '3px 9px', borderRadius: 999, fontSize: '0.74rem', fontWeight: 700,
+                    background: p.is_available ? '#d1fae5' : '#fee2e2',
+                    color: p.is_available ? '#047857' : '#b91c1c'
+                  }}>
+                    {p.is_available ? 'Available' : 'Busy'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Services */}
       <section className="section" id="services-section" style={{ paddingTop: 10 }}>
         <div className="container">
@@ -271,10 +322,10 @@ export default function App() {
             <div>
               <h2>
                 {selectedCat === 'all'
-                  ? 'All Home & Gadget Services'
+                  ? 'All Services & Tech Accessories'
                   : categories.find(c => c.id === selectedCat)?.name || 'Services'}
               </h2>
-              <p>{filteredServices.length} services available with transparent upfront pricing</p>
+              <p>{filteredServices.length} services available with upfront pricing &amp; warranty</p>
             </div>
           </div>
 
@@ -290,12 +341,8 @@ export default function App() {
                       className="srv-photo"
                       loading="lazy"
                     />
-                    <div className="srv-top">
-                      <div>
-                        <span className="srv-badge">{srv.category_name}</span>
-                        <h3>{srv.name}</h3>
-                      </div>
-                    </div>
+                    <span className="srv-badge">{srv.category_name}</span>
+                    <h3>{srv.name}</h3>
 
                     <div className="srv-meta">
                       <span className="rating-pill">
@@ -344,6 +391,29 @@ export default function App() {
         </div>
       </section>
 
+      {/* Footer */}
+      <footer className="footer">
+        <div className="container footer-grid">
+          <div>
+            <h3 style={{ color: '#fff', marginBottom: 8 }}>HomeServe eDemand</h3>
+            <p style={{ fontSize: '0.88rem', color: '#94a3b8' }}>
+              Multi-provider on-demand home services, electronics repair &amp; tech accessories marketplace.
+            </p>
+          </div>
+          <div>
+            <h4 style={{ color: '#fff' }}>Portals</h4>
+            <a href="/">Customer Website</a>
+            <a href="/partner/">Partner / Provider Panel</a>
+            <a href="/admin/">Super Admin Panel</a>
+          </div>
+          <div>
+            <h4 style={{ color: '#fff' }}>Android APKs</h4>
+            <a href="/HomeServePro.apk" download>Customer Android APK</a>
+            <a href="/HomeServeProvider.apk" download>Provider / Partner APK</a>
+          </div>
+        </div>
+      </footer>
+
       {/* Cart & Checkout Drawer */}
       {cartOpen && (
         <div className="overlay" onClick={() => setCartOpen(false)}>
@@ -361,7 +431,7 @@ export default function App() {
                   <CheckCircle2 size={56} color="#10b981" style={{ margin: '0 auto 14px' }} />
                   <h2 style={{ marginBottom: 8 }}>Booking {bookingSuccess.booking_code}</h2>
                   <p style={{ color: '#64748b', marginBottom: 18 }}>
-                    Thank you, <strong>{bookingSuccess.customer_name}</strong>! Our technician will arrive on{' '}
+                    Thank you, <strong>{bookingSuccess.customer_name}</strong>! Your visit is scheduled for{' '}
                     <strong>{bookingSuccess.scheduled_date}</strong> ({bookingSuccess.scheduled_slot}).
                   </p>
                   <div className="cart-item" style={{ textAlign: 'left', marginBottom: 16 }}>
@@ -378,7 +448,7 @@ export default function App() {
               ) : cart.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b' }}>
                   <ShoppingBag size={42} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
-                  <p>Your service cart is empty. Add AC, TV, Mobile, Laptop or other services to book.</p>
+                  <p>Your cart is empty. Add Laptop, Mobile, TV, Accessories or Home services to book.</p>
                 </div>
               ) : (
                 <>
@@ -431,7 +501,7 @@ export default function App() {
                     </div>
                     <div className="form-group">
                       <label>Issue Notes (Optional)</label>
-                      <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="e.g. Split AC 1.5 Ton, low cooling" />
+                      <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="e.g. MacBook Pro M2, screen flicker" />
                     </div>
                   </form>
                 </>
@@ -478,8 +548,8 @@ export default function App() {
                     <strong style={{ color: '#0f172a' }}>₹{b.total_amount}</strong>
                   </div>
                   {b.technician_name && (
-                    <div style={{ marginTop: 6, fontSize: '0.82rem', color: '#4f46e5', fontWeight: 600 }}>
-                      Assigned Pro: {b.technician_name} ({b.technician_phone})
+                    <div style={{ marginTop: 6, fontSize: '0.82rem', color: '#0277fa', fontWeight: 600 }}>
+                      Assigned Provider: {b.technician_name} ({b.technician_phone})
                     </div>
                   )}
                 </div>

@@ -105,6 +105,15 @@ export default {
         return json(results);
       }
 
+      if (path === '/api/partner/login' && method === 'POST') {
+        const { phone } = await request.json();
+        const clean = String(phone || '').replace(/\s+/g, '');
+        const { results } = await env.DB.prepare('SELECT * FROM technicians').all();
+        const found = results.find(t => t.phone.replace(/\s+/g, '').includes(clean) || t.id === phone);
+        if (!found) return json({ error: 'Partner not found' }, 404);
+        return json(found);
+      }
+
       if (path === '/api/technicians' && method === 'POST') {
         const { name, phone, specialty, city = 'Delhi NCR' } = await request.json();
         if (!name || !phone || !specialty) return json({ error: 'name, phone and specialty are required' }, 400);
@@ -127,12 +136,19 @@ export default {
       }
 
       if (path === '/api/bookings' && method === 'GET') {
-        const { results } = await env.DB.prepare(`
+        const techId = url.searchParams.get('technicianId');
+        let sql = `
           SELECT b.*, t.name as technician_name, t.phone as technician_phone
           FROM bookings b
           LEFT JOIN technicians t ON b.technician_id = t.id
-          ORDER BY b.created_at DESC
-        `).all();
+        `;
+        const params = [];
+        if (techId) {
+          sql += ' WHERE b.technician_id = ? OR b.technician_id IS NULL';
+          params.push(techId);
+        }
+        sql += ' ORDER BY b.created_at DESC';
+        const { results } = await env.DB.prepare(sql).bind(...params).all();
         return json(results.map(r => ({ ...r, items: JSON.parse(r.items_json || '[]') })));
       }
 

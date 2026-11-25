@@ -208,7 +208,7 @@ public class MainActivity extends Activity {
         Button syncBtn = new Button(this);
         syncBtn.setText("Sync");
         syncBtn.setTextColor(Color.WHITE);
-        syncBtn.setBackground(roundedBg(Color.parseColor("#4F46E5"), 8, 0));
+        syncBtn.setBackground(roundedBg(Color.parseColor("#0277FA"), 8, 0));
         syncBtn.setPadding(dp(14), dp(6), dp(14), dp(6));
         syncBtn.setOnClickListener(v -> syncWithServer(true));
 
@@ -264,8 +264,8 @@ public class MainActivity extends Activity {
         Button[] btns = {tabServicesBtn, tabCartBtn, tabBookingsBtn};
         for (int i = 0; i < btns.length; i++) {
             boolean active = (i == currentTab);
-            btns[i].setBackground(roundedBg(active ? Color.parseColor("#EEF2FF") : Color.TRANSPARENT, 10, 0));
-            btns[i].setTextColor(Color.parseColor(active ? "#4F46E5" : "#64748B"));
+            btns[i].setBackground(roundedBg(active ? Color.parseColor("#E8F2FF") : Color.TRANSPARENT, 10, 0));
+            btns[i].setTextColor(Color.parseColor(active ? "#0277FA" : "#64748B"));
             btns[i].setTypeface(null, active ? Typeface.BOLD : Typeface.NORMAL);
         }
     }
@@ -306,7 +306,7 @@ public class MainActivity extends Activity {
             chip.setTextSize(12);
             boolean active = selectedCategory.equals(cat[0]);
             chip.setBackground(roundedBg(
-                active ? Color.parseColor("#4F46E5") : Color.WHITE,
+                active ? Color.parseColor("#0277FA") : Color.WHITE,
                 20,
                 active ? 0 : Color.parseColor("#CBD5E1")
             ));
