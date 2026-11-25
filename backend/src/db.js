@@ -37,6 +37,7 @@ db.exec(`
     includes TEXT NOT NULL,
     is_popular INTEGER DEFAULT 0,
     is_active INTEGER DEFAULT 1,
+    image_url TEXT DEFAULT '/images/ac.jpg',
     FOREIGN KEY (category_id) REFERENCES categories(id)
   );
 

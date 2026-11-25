@@ -1,6 +1,8 @@
 package com.homeserve.pro;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -15,6 +17,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -41,12 +44,12 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
 
     static class ServiceItem {
-        String id, categoryId, categoryName, name, desc;
+        String id, categoryId, categoryName, name, desc, imageUrl;
         int price, originalPrice, durationMins, warrantyDays;
         double rating;
 
         ServiceItem(String id, String categoryId, String categoryName, String name, String desc,
-                    int price, int originalPrice, int durationMins, double rating, int warrantyDays) {
+                    int price, int originalPrice, int durationMins, double rating, int warrantyDays, String imageUrl) {
             this.id = id;
             this.categoryId = categoryId;
             this.categoryName = categoryName;
@@ -57,6 +60,7 @@ public class MainActivity extends Activity {
             this.durationMins = durationMins;
             this.rating = rating;
             this.warrantyDays = warrantyDays;
+            this.imageUrl = imageUrl;
         }
     }
 
@@ -89,13 +93,15 @@ public class MainActivity extends Activity {
     private final List<ServiceItem> allServices = new ArrayList<>();
     private final Map<String, Integer> cartQty = new LinkedHashMap<>();
     private final List<BookingItem> bookings = new ArrayList<>();
+    private final Map<String, Bitmap> imageCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final String[][] categories = {
         {"all", "All"},
-        {"cat-ac", "AC & Cooling"},
-        {"cat-tv", "TV Repair"},
-        {"cat-mobile", "Mobile"},
         {"cat-laptop", "Laptop & PC"},
+        {"cat-mobile", "Mobile"},
+        {"cat-tv", "TV Repair"},
+        {"cat-accessories", "Accessories"},
+        {"cat-ac", "AC & Cooling"},
         {"cat-appliance", "Appliances"},
         {"cat-electrician", "Electrician"},
         {"cat-plumber", "Plumbing"},
@@ -121,21 +127,40 @@ public class MainActivity extends Activity {
 
     private void seedFallbackServices() {
         allServices.clear();
-        allServices.add(new ServiceItem("srv-ac-1", "cat-ac", "AC & Cooling", "Foam-Jet AC Service (Split)", "2X deeper indoor & outdoor jet cleaning.", 599, 899, 60, 4.9, 30));
-        allServices.add(new ServiceItem("srv-ac-2", "cat-ac", "AC & Cooling", "AC Gas Refill & Leak Fix", "Complete R32/R410A refill with nitrogen leak test.", 2499, 3200, 90, 4.8, 60));
-        allServices.add(new ServiceItem("srv-tv-1", "cat-tv", "TV Repair", "LED / Smart TV Inspection & Repair", "Fix no-display, backlight or sound issues at home.", 349, 599, 45, 4.8, 45));
-        allServices.add(new ServiceItem("srv-tv-2", "cat-tv", "TV Repair", "TV Wall Mount Installation", "Laser-leveled wall mounting up to 65 inch.", 499, 799, 45, 4.9, 30));
-        allServices.add(new ServiceItem("srv-mob-1", "cat-mobile", "Mobile", "Doorstep Mobile Screen Replacement", "OEM-grade display replacement in 30 mins.", 1999, 2799, 30, 4.9, 90));
-        allServices.add(new ServiceItem("srv-mob-2", "cat-mobile", "Mobile", "Mobile Battery Replacement", "Zero-cycle battery replacement at doorstep.", 999, 1499, 30, 4.8, 90));
-        allServices.add(new ServiceItem("srv-lap-1", "cat-laptop", "Laptop & PC", "Laptop Deep Clean & Thermal Paste", "Solve overheating and loud fan noise.", 699, 999, 60, 4.9, 30));
-        allServices.add(new ServiceItem("srv-lap-2", "cat-laptop", "Laptop & PC", "NVMe SSD Upgrade & Windows Setup", "10X faster boot with data migration.", 899, 1299, 60, 4.9, 60));
-        allServices.add(new ServiceItem("srv-app-1", "cat-appliance", "Appliances", "Washing Machine Repair", "Fix drum spin, water drain & error codes.", 349, 549, 60, 4.8, 30));
-        allServices.add(new ServiceItem("srv-elec-2", "cat-electrician", "Electrician", "MCB, Switchboard & Inverter Wiring", "Fix tripping breakers and inverter setup.", 299, 499, 45, 4.8, 30));
-        allServices.add(new ServiceItem("srv-plm-1", "cat-plumber", "Plumbing", "Tap, Mixer & Flush Tank Repair", "Stop dripping taps and cistern leaks.", 199, 349, 30, 4.8, 30));
-        allServices.add(new ServiceItem("srv-cln-1", "cat-cleaning", "Cleaning", "Full Home Deep Cleaning (2BHK)", "Machine scrubbing & kitchen degreasing.", 2999, 3999, 240, 4.9, 7));
-        allServices.add(new ServiceItem("srv-crp-1", "cat-carpenter", "Carpentry", "Door Lock & Wardrobe Repair", "Fix misaligned doors, hinges & locks.", 249, 399, 45, 4.8, 30));
-        allServices.add(new ServiceItem("srv-pst-1", "cat-pest", "Pest Control", "Cockroach & Ant Gel Treatment", "Odorless gel & herbal spray (90d warranty).", 899, 1299, 45, 4.9, 90));
-        allServices.add(new ServiceItem("srv-ro-1", "cat-ro", "RO & Chimney", "RO Purifier Filter Service", "Sediment, carbon & TDS calibration.", 499, 799, 45, 4.8, 30));
+        allServices.add(new ServiceItem("srv-lap-1", "cat-laptop", "Laptop & PC", "Laptop Deep Clean & Thermal Paste", "Solve overheating and loud fan noise.", 699, 999, 60, 4.9, 30, "/images/laptop.jpg"));
+        allServices.add(new ServiceItem("srv-lap-2", "cat-laptop", "Laptop & PC", "NVMe SSD Upgrade & Windows Setup", "10X faster boot with data migration.", 899, 1299, 60, 4.9, 60, "/images/laptop.jpg"));
+        allServices.add(new ServiceItem("srv-lap-4", "cat-laptop", "Laptop & PC", "MacBook Air / Pro Retina Display Swap", "Original TrueTone Retina panel for M1/M2/M3.", 14999, 19500, 90, 4.9, 180, "/images/laptop.jpg"));
+        allServices.add(new ServiceItem("srv-lap-5", "cat-laptop", "Laptop & PC", "Gaming Laptop GPU Repaste & Fan Service", "Arctic MX-6 repaste for ROG, Legion & Victus.", 1199, 1699, 60, 4.9, 60, "/images/laptop.jpg"));
+        allServices.add(new ServiceItem("srv-lap-6", "cat-laptop", "Laptop & PC", "16GB / 32GB DDR4/DDR5 RAM Upgrade", "Boost multitasking speed with genuine RAM.", 3499, 4499, 30, 4.8, 365, "/images/laptop.jpg"));
+        allServices.add(new ServiceItem("srv-lap-7", "cat-laptop", "Laptop & PC", "Laptop Battery & Type-C Charger Swap", "Zero-cycle 6-cell battery & original adapter.", 2499, 3299, 40, 4.8, 180, "/images/laptop.jpg"));
+        allServices.add(new ServiceItem("srv-lap-8", "cat-laptop", "Laptop & PC", "Dell / HP / Lenovo Hinge & Body Fix", "Precision chassis & metal hinge restoration.", 999, 1499, 75, 4.7, 90, "/images/laptop.jpg"));
+
+        allServices.add(new ServiceItem("srv-mob-1", "cat-mobile", "Mobile", "Doorstep Mobile Screen Replacement", "OEM-grade display replacement in 30 mins.", 1999, 2799, 30, 4.9, 90, "/images/mobile.jpg"));
+        allServices.add(new ServiceItem("srv-mob-2", "cat-mobile", "Mobile", "Mobile Battery Replacement", "Zero-cycle battery replacement at doorstep.", 999, 1499, 30, 4.8, 90, "/images/mobile.jpg"));
+        allServices.add(new ServiceItem("srv-mob-4", "cat-mobile", "Mobile", "iPhone 14 / 15 / 16 Pro OLED Display", "120Hz ProMotion OLED with FaceID & TrueTone.", 6999, 9499, 45, 4.9, 180, "/images/mobile.jpg"));
+        allServices.add(new ServiceItem("srv-mob-5", "cat-mobile", "Mobile", "Samsung S23 / S24 Ultra AMOLED Fix", "Dynamic AMOLED 2X & fingerprint calibration.", 8499, 11200, 60, 4.9, 180, "/images/mobile.jpg"));
+        allServices.add(new ServiceItem("srv-mob-6", "cat-mobile", "Mobile", "OnePlus / Xiaomi SuperVOOC Screen Fix", "Fast doorstep display with tempered glass.", 2499, 3499, 35, 4.8, 90, "/images/mobile.jpg"));
+        allServices.add(new ServiceItem("srv-mob-7", "cat-mobile", "Mobile", "Phone Back Glass & Camera Lens Fix", "Laser-cut OEM back glass & camera ring.", 1299, 1899, 40, 4.8, 60, "/images/mobile.jpg"));
+
+        allServices.add(new ServiceItem("srv-tv-1", "cat-tv", "TV Repair", "LED / Smart TV Inspection & Repair", "Fix no-display, backlight or sound issues.", 349, 599, 45, 4.8, 45, "/images/tv.jpg"));
+        allServices.add(new ServiceItem("srv-tv-2", "cat-tv", "TV Repair", "TV Wall Mount Installation", "Laser-leveled wall mounting up to 65 inch.", 499, 799, 45, 4.9, 30, "/images/tv.jpg"));
+        allServices.add(new ServiceItem("srv-tv-4", "cat-tv", "TV Repair", "55\" / 65\" 4K QLED & OLED Panel Fix", "Fix vertical lines, flicker & T-Con issues.", 2499, 3699, 90, 4.8, 90, "/images/tv.jpg"));
+        allServices.add(new ServiceItem("srv-tv-6", "cat-tv", "TV Repair", "Swivel TV Wall Mount (50\"-85\")", "Heavy-duty articulating bracket & trunking.", 999, 1499, 60, 4.9, 90, "/images/tv.jpg"));
+        allServices.add(new ServiceItem("srv-tv-7", "cat-tv", "TV Repair", "Soundbar & Home Theater 5.1 Setup", "Dolby Atmos HDMI eARC setup & tuning.", 799, 1199, 60, 4.9, 30, "/images/tv.jpg"));
+
+        allServices.add(new ServiceItem("srv-acc-1", "cat-accessories", "Accessories", "65W GaN Fast Charger + Braided Cable", "3-port GaN charger for MacBook & Phones.", 1499, 2199, 15, 4.9, 365, "/images/accessories.jpg"));
+        allServices.add(new ServiceItem("srv-acc-2", "cat-accessories", "Accessories", "1TB NVMe M.2 SSD + USB-C Enclosure", "10Gbps portable storage & upgrade kit.", 5499, 6999, 20, 4.9, 1095, "/images/accessories.jpg"));
+        allServices.add(new ServiceItem("srv-acc-3", "cat-accessories", "Accessories", "8-in-1 Aluminum USB-C Hub (4K HDMI)", "4K@60Hz HDMI, 100W PD & Gigabit LAN.", 1699, 2499, 15, 4.8, 365, "/images/accessories.jpg"));
+        allServices.add(new ServiceItem("srv-acc-4", "cat-accessories", "Accessories", "Wireless Mechanical Keyboard & Mouse", "Hot-swappable RGB keyboard & silent mouse.", 2299, 3199, 15, 4.8, 365, "/images/accessories.jpg"));
+        allServices.add(new ServiceItem("srv-acc-5", "cat-accessories", "Accessories", "ANC Wireless Earbuds Pro (40dB)", "40hr battery & quad-mic ENC calling.", 1799, 2999, 15, 4.8, 365, "/images/accessories.jpg"));
+        allServices.add(new ServiceItem("srv-acc-6", "cat-accessories", "Accessories", "Dual-Fan RGB Laptop Cooling Stand", "6-level height stand with silent fans.", 1199, 1799, 15, 4.7, 180, "/images/accessories.jpg"));
+
+        allServices.add(new ServiceItem("srv-ac-1", "cat-ac", "AC & Cooling", "Foam-Jet AC Service (Split)", "2X deeper indoor & outdoor jet cleaning.", 599, 899, 60, 4.9, 30, "/images/ac.jpg"));
+        allServices.add(new ServiceItem("srv-ac-2", "cat-ac", "AC & Cooling", "AC Gas Refill & Leak Fix", "Complete R32/R410A refill with nitrogen test.", 2499, 3200, 90, 4.8, 60, "/images/ac.jpg"));
+        allServices.add(new ServiceItem("srv-app-1", "cat-appliance", "Appliances", "Washing Machine Repair", "Fix drum spin, water drain & error codes.", 349, 549, 60, 4.8, 30, "/images/ac.jpg"));
+        allServices.add(new ServiceItem("srv-elec-2", "cat-electrician", "Electrician", "MCB, Switchboard & Inverter Wiring", "Fix tripping breakers and inverter setup.", 299, 499, 45, 4.8, 30, "/images/ac.jpg"));
+        allServices.add(new ServiceItem("srv-plm-1", "cat-plumber", "Plumbing", "Tap, Mixer & Flush Tank Repair", "Stop dripping taps and cistern leaks.", 199, 349, 30, 4.8, 30, "/images/ac.jpg"));
+        allServices.add(new ServiceItem("srv-cln-1", "cat-cleaning", "Cleaning", "Full Home Deep Cleaning (2BHK)", "Machine scrubbing & kitchen degreasing.", 2999, 3999, 240, 4.9, 7, "/images/ac.jpg"));
     }
 
     private int dp(int v) {
@@ -329,6 +354,18 @@ public class MainActivity extends Activity {
                 );
                 cardLp.setMargins(0, 0, 0, dp(10));
                 card.setLayoutParams(cardLp);
+
+                ImageView imgView = new ImageView(this);
+                imgView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                LinearLayout.LayoutParams imgLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(145)
+                );
+                imgLp.setMargins(0, 0, 0, dp(10));
+                imgView.setLayoutParams(imgLp);
+                imgView.setClipToOutline(true);
+                imgView.setBackground(roundedBg(Color.parseColor("#F1F5F9"), 10, 0));
+                loadServiceImage(imgView, srv);
+                card.addView(imgView);
 
                 TextView catTv = new TextView(this);
                 catTv.setText(srv.categoryName.toUpperCase());
@@ -670,7 +707,8 @@ public class MainActivity extends Activity {
                             o.optInt("original_price", 0),
                             o.optInt("duration_mins", 45),
                             o.optDouble("rating", 4.8),
-                            o.optInt("warranty_days", 30)
+                            o.optInt("warranty_days", 30),
+                            o.optString("image_url", "/images/ac.jpg")
                         ));
                     }
                     // Fetch bookings
@@ -800,6 +838,42 @@ public class MainActivity extends Activity {
                 renderCurrentTab();
                 Toast.makeText(this, "Saved offline (" + localCode + ")", Toast.LENGTH_LONG).show();
             });
+        });
+    }
+
+    private int getFallbackDrawable(String categoryId) {
+        if ("cat-laptop".equals(categoryId)) return R.drawable.img_laptop;
+        if ("cat-mobile".equals(categoryId)) return R.drawable.img_mobile;
+        if ("cat-tv".equals(categoryId)) return R.drawable.img_tv;
+        if ("cat-accessories".equals(categoryId)) return R.drawable.img_accessories;
+        return R.drawable.img_ac;
+    }
+
+    private void loadServiceImage(ImageView iv, ServiceItem srv) {
+        iv.setImageResource(getFallbackDrawable(srv.categoryId));
+        if (srv.imageUrl == null || srv.imageUrl.isEmpty()) return;
+        String fullUrl = srv.imageUrl.startsWith("http") ? srv.imageUrl : (serverUrl + srv.imageUrl);
+        Bitmap cached = imageCache.get(fullUrl);
+        if (cached != null) {
+            iv.setImageBitmap(cached);
+            return;
+        }
+        iv.setTag(fullUrl);
+        executor.execute(() -> {
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(fullUrl).openConnection();
+                conn.setConnectTimeout(4000);
+                conn.setReadTimeout(4000);
+                if (conn.getResponseCode() == 200) {
+                    Bitmap bmp = BitmapFactory.decodeStream(conn.getInputStream());
+                    if (bmp != null) {
+                        imageCache.put(fullUrl, bmp);
+                        mainHandler.post(() -> {
+                            if (fullUrl.equals(iv.getTag())) iv.setImageBitmap(bmp);
+                        });
+                    }
+                }
+            } catch (Exception ignored) {}
         });
     }
 }

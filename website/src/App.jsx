@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Wind, Tv, Smartphone, Laptop, Refrigerator, Zap, Wrench, Sparkles,
   Hammer, Paintbrush, ShieldCheck, Droplets, Search, ShoppingBag,
-  Star, Clock, Shield, CheckCircle2, X, MapPin, ClipboardList, Plus, Minus
+  Star, Clock, Shield, CheckCircle2, X, MapPin, ClipboardList, Plus, Minus,
+  Cpu, Download
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 const ICON_MAP = {
   Wind, Tv, Smartphone, Laptop, Refrigerator, Zap, Wrench,
-  Sparkles, Hammer, Paintbrush, ShieldCheck, Droplets
+  Sparkles, Hammer, Paintbrush, ShieldCheck, Droplets, Cpu
 };
 
 const TIME_SLOTS = [
@@ -188,6 +189,15 @@ export default function App() {
                 <strong>50,000+</strong>
                 <span>Happy Homes</span>
               </div>
+              <a
+                href="/HomeServePro.apk"
+                download
+                className="btn"
+                style={{ background: 'rgba(255,255,255,0.16)', color: '#fff', border: '1px solid rgba(255,255,255,0.28)', textDecoration: 'none' }}
+              >
+                <Download size={16} />
+                <span>Download Android APK</span>
+              </a>
             </div>
           </div>
 
@@ -274,6 +284,12 @@ export default function App() {
               return (
                 <div key={srv.id} className="srv-card">
                   <div>
+                    <img
+                      src={srv.image_url || '/images/ac.jpg'}
+                      alt={srv.name}
+                      className="srv-photo"
+                      loading="lazy"
+                    />
                     <div className="srv-top">
                       <div>
                         <span className="srv-badge">{srv.category_name}</span>
