@@ -664,9 +664,12 @@ export default function App() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Admin Email / Phone</label>
+              <label htmlFor="admin-login-email" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Admin Email / Phone</label>
               <input
+                id="admin-login-email"
+                name="username"
                 type="text"
+                autoComplete="username"
                 value={loginPhone}
                 onChange={e => setLoginPhone(e.target.value)}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
@@ -675,9 +678,12 @@ export default function App() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Security Password</label>
+              <label htmlFor="admin-login-password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Security Password</label>
               <input
+                id="admin-login-password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 value={loginPass}
                 onChange={e => setLoginPass(e.target.value)}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
