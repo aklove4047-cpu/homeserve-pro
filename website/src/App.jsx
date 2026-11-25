@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Wind, Tv, Smartphone, Laptop, Refrigerator, Zap, Wrench, Sparkles,
   Hammer, Paintbrush, ShieldCheck, Droplets, Search, ShoppingBag,
@@ -7,8 +7,8 @@ import {
   Send, Tag, FileText, Moon, Sun, Home, User, FilePlus2, MapPin,
   Car, Scissors, Bell, ChevronLeft, ChevronRight, TrendingUp,
   Percent, Shield, Zap as ZapIcon, Package, Phone, Mail, Globe,
-  Download, ChevronRight as CR,
-  CheckCheck, AlertCircle, Bike, ArrowRight, ThumbsUp, Eye
+  Download, ChevronRight as CR, CheckCheck, AlertCircle, Bike, ArrowRight,
+  Wallet, Gift, Compass, Layers, Sliders, Check, RefreshCw
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -52,6 +52,39 @@ const HERO_TILES = [
   'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80'
 ];
 
+const SUPER_COMBOS = [
+  {
+    id: 'combo-1',
+    title: 'Summer Chill AC & Clean Combo',
+    badge: 'SAVE ₹1,200',
+    services: ['AC Foam-Jet Wash', 'Bathroom Deep Cleaning', 'Kitchen Exhaust Degreasing'],
+    original_price: 3699,
+    price: 2499,
+    warranty: '60 Days Warranty',
+    img: 'https://images.unsplash.com/photo-1631815588090-d4bfec5b1ccb?w=500&q=80'
+  },
+  {
+    id: 'combo-2',
+    title: 'Total Home Defense Combo',
+    badge: 'POPULAR',
+    services: ['Pest Control (2BHK)', 'Water Tank Scrubbing', 'Drain Disinfection'],
+    original_price: 2899,
+    price: 1899,
+    warranty: '90 Days Warranty',
+    img: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&q=80'
+  },
+  {
+    id: 'combo-3',
+    title: 'Ultimate PC & Gadget Care',
+    badge: 'BEST VALUE',
+    services: ['Laptop MX-6 Repaste', 'NVMe SSD Clean Install', 'Internal Dust Jetting'],
+    original_price: 2999,
+    price: 1999,
+    warranty: '180 Days Warranty',
+    img: 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=500&q=80'
+  }
+];
+
 const TESTIMONIALS = [
   { name: 'Rohan Mehta', city: 'Delhi', srv: 'iPhone 15 OLED Screen', text: 'Technician arrived in 30 mins and replaced my screen cleanly. TrueTone works perfectly!', rating: 5 },
   { name: 'Priya Nair', city: 'Mumbai', srv: 'Laptop SSD + Repaste', text: 'My gaming laptop boots in 6 seconds now and runs 15°C cooler. Super transparent pricing!', rating: 5 },
@@ -65,8 +98,7 @@ const FAQS = [
   { q: 'Are providers background-verified?', a: 'Yes! Every technician goes through ID verification, skill certification, and customer rating checks before being listed on FixoHub.' },
   { q: 'What warranty do I get?', a: 'All services come with up to 365-day warranty. Accessories have 1-year replacement warranty. If anything goes wrong, we send the same technician back for free.' },
   { q: 'Can I track my booking in real-time?', a: 'Yes! Once a provider accepts your booking, you get live status updates — Assigned → On The Way → Started → Completed. You can also chat directly with the provider.' },
-  { q: 'Which payment methods are supported?', a: 'We support UPI, RazorPay, Credit/Debit Cards, Net Banking, Wallets, and Cash on Delivery. All transactions are secured with 256-bit SSL encryption.' },
-  { q: 'Can I cancel a booking?', a: 'Free cancellation up to 1 hour before the scheduled slot. After that, a small cancellation fee may apply. Rescheduling is always free.' }
+  { q: 'What is FixoWallet?', a: 'FixoWallet is your instant payment balance with zero checkout failures. Add funds via UPI/Card to earn 5% extra cashback on every deposit!' }
 ];
 
 const BLOG_IMGS = [
@@ -79,7 +111,7 @@ const TRACK_STEPS = ['Booked', 'Assigned', 'On Way', 'Started', 'Done'];
 const STATUS_TRACK = { pending: 1, confirmed: 1, assigned: 2, in_progress: 3, completed: 5 };
 
 export default function App() {
-  const [view, setView] = useState('home');
+  const [view, setView] = useState('home'); // home | bookings | requests | chats | wallet | profile | compare
   const [darkMode, setDarkMode] = useState(false);
   const [heroSlide, setHeroSlide] = useState(0);
 
@@ -94,6 +126,7 @@ export default function App() {
 
   const [selectedCat, setSelectedCat] = useState('all');
   const [sortBy, setSortBy] = useState('popular');
+  const [priceFilter, setPriceFilter] = useState('all');
   const [showNotif, setShowNotif] = useState(false);
   const [lang, setLang] = useState('EN');
   const [search, setSearch] = useState('');
@@ -104,6 +137,45 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [visitMode, setVisitMode] = useState('At Doorstep');
+  const [isExpress, setIsExpress] = useState(false);
+  const [tipAmount, setTipAmount] = useState(0);
+
+  // FixoWallet State
+  const [walletBalance, setWalletBalance] = useState(() => {
+    try { return +localStorage.getItem('fh_wallet') || 1500; } catch { return 1500; }
+  });
+  const [addWalletAmt, setAddWalletAmt] = useState(500);
+  const [showAddWalletModal, setShowAddWalletModal] = useState(false);
+  const [walletTransactions, setWalletTransactions] = useState([
+    { id: 'tx-1', type: 'credit', desc: 'Welcome Bonus Credited', amount: 500, date: '25 Nov 2026' },
+    { id: 'tx-2', type: 'credit', desc: 'Cashback: Booking #11059', amount: 200, date: '25 Nov 2026' },
+    { id: 'tx-3', type: 'credit', desc: 'Wallet Deposit via UPI', amount: 800, date: '24 Nov 2026' }
+  ]);
+
+  // Saved Addresses State
+  const [addresses, setAddresses] = useState([
+    { id: 'addr-1', label: 'Home', text: 'Flat 402, Green Park Residency, Sector 14', city: 'Delhi NCR', isDefault: true },
+    { id: 'addr-2', label: 'Office', text: 'Plot 78, Cyber City Phase 2', city: 'Delhi NCR', isDefault: false }
+  ]);
+  const [selectedAddressId, setSelectedAddressId] = useState('addr-1');
+  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+  const [newAddrForm, setNewAddrForm] = useState({ label: 'Home', text: '', city: 'Delhi NCR' });
+
+  // Comparison State
+  const [compareList, setCompareList] = useState([]);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+
+  // Lucky Scratch Card Modal
+  const [showScratchModal, setShowScratchModal] = useState(false);
+  const [scratchClaimed, setScratchClaimed] = useState(false);
+
+  // Tickets State
+  const [tickets, setTickets] = useState([
+    { id: 'TKT-104', subject: 'Query on invoice receipt', category: 'Billing', status: 'Resolved', date: '24 Nov 2026' }
+  ]);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [ticketForm, setTicketForm] = useState({ subject: '', category: 'Service Quality', desc: '' });
+
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState(null);
   const [bookingTab, setBookingTab] = useState('ongoing');
@@ -118,7 +190,6 @@ export default function App() {
   const [chatTab, setChatTab] = useState('Enquiries');
   const [activePartner, setActivePartner] = useState(null);
   const [chatInput, setChatInput] = useState('');
-  const [loyaltyPoints] = useState(1240);
   const [showCityPop, setShowCityPop] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [bookmarks, setBookmarks] = useState(() => {
@@ -130,9 +201,9 @@ export default function App() {
   });
 
   const [form, setForm] = useState({
-    customer_name: '', customer_phone: '', address: '',
+    customer_name: 'Rahul Sharma', customer_phone: '+91 98765 43210', address: 'Flat 402, Green Park Residency',
     scheduled_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-    scheduled_slot: TIME_SLOTS[1], payment_method: 'UPI / RazorPay', notes: ''
+    scheduled_slot: TIME_SLOTS[1], payment_method: 'FixoWallet (Fast & 5% Cashback)', notes: ''
   });
 
   useEffect(() => { document.body.classList.toggle('dark', darkMode); }, [darkMode]);
@@ -163,13 +234,18 @@ export default function App() {
     const list = services.filter(s => {
       const matchCat = selectedCat === 'all' || s.category_id === selectedCat;
       const q = search.trim().toLowerCase();
-      return matchCat && (!q || s.name.toLowerCase().includes(q) || (s.category_name || '').toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
+      const matchSearch = !q || s.name.toLowerCase().includes(q) || (s.category_name || '').toLowerCase().includes(q) || s.description.toLowerCase().includes(q);
+      let matchPrice = true;
+      if (priceFilter === 'under500') matchPrice = s.price < 500;
+      if (priceFilter === '500to1500') matchPrice = s.price >= 500 && s.price <= 1500;
+      if (priceFilter === 'above1500') matchPrice = s.price > 1500;
+      return matchCat && matchSearch && matchPrice;
     });
     if (sortBy === 'price_asc') return [...list].sort((a, b) => a.price - b.price);
     if (sortBy === 'price_desc') return [...list].sort((a, b) => b.price - a.price);
     if (sortBy === 'rating') return [...list].sort((a, b) => b.rating - a.rating);
     return list;
-  }, [services, selectedCat, search, sortBy]);
+  }, [services, selectedCat, search, sortBy, priceFilter]);
 
   const toggleBookmark = (id) => {
     setBookmarks(prev => {
@@ -187,33 +263,94 @@ export default function App() {
     });
   };
 
+  const addComboToCart = (combo) => {
+    setCart(prev => {
+      const found = prev.find(i => i.id === combo.id);
+      if (found) return prev.map(i => i.id === combo.id ? { ...i, qty: i.qty + 1 } : i);
+      return [...prev, { id: combo.id, name: combo.title, price: combo.price, qty: 1 }];
+    });
+    setCartOpen(true);
+  };
+
+  const toggleCompare = (srv) => {
+    if (compareList.some(s => s.id === srv.id)) {
+      setCompareList(compareList.filter(s => s.id !== srv.id));
+    } else {
+      if (compareList.length >= 3) {
+        alert('You can compare maximum 3 services at a time.');
+        return;
+      }
+      setCompareList([...compareList, srv]);
+    }
+  };
+
   const updateQty = (id, delta) => setCart(prev => prev.map(i => i.id === id ? { ...i, qty: i.qty + delta } : i).filter(i => i.qty > 0));
   const getQty = id => cart.find(i => i.id === id)?.qty || 0;
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const subTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountAmt = appliedPromo ? Math.min(Math.round(subTotal * (appliedPromo.discount_percent / 100)), appliedPromo.max_discount) : 0;
-  const cartTotal = Math.max(0, subTotal - discountAmt);
-  const taxAmt = Math.round(cartTotal * 0.18);
+  const expressFee = isExpress ? 149 : 0;
+  const finalPayable = Math.max(0, subTotal - discountAmt) + expressFee + tipAmount;
 
   const applyPromo = () => {
     const code = promoInput.trim().toUpperCase();
     const found = promos.find(p => p.code === code && p.is_active);
-    if (!found) return alert('Invalid promo code. Try FIXO50, WELCOME20 or TECH15');
+    if (!found) return alert('Invalid code. Try FIXO50, WELCOME20 or LUCKY30');
     if (subTotal < found.min_order) return alert(`Min order ₹${found.min_order} required`);
     setAppliedPromo(found);
+  };
+
+  const addFundsToWallet = () => {
+    const amt = +addWalletAmt;
+    if (amt <= 0) return;
+    const bonus = Math.round(amt * 0.05);
+    const newBal = walletBalance + amt + bonus;
+    setWalletBalance(newBal);
+    localStorage.setItem('fh_wallet', newBal);
+    setWalletTransactions([
+      { id: `tx-${Date.now()}`, type: 'credit', desc: `Deposit + 5% Bonus (₹${bonus})`, amount: amt + bonus, date: 'Just now' },
+      ...walletTransactions
+    ]);
+    setShowAddWalletModal(false);
+    alert(`₹${amt + bonus} successfully added to FixoWallet!`);
   };
 
   const handleCheckout = async (e) => {
     e.preventDefault();
     if (!cart.length) return;
+
+    if (form.payment_method.includes('FixoWallet')) {
+      if (walletBalance < finalPayable) {
+        alert(`Insufficient FixoWallet balance (₹${walletBalance}). Please recharge or select UPI/Card.`);
+        setShowAddWalletModal(true);
+        return;
+      }
+      const newBal = walletBalance - finalPayable;
+      setWalletBalance(newBal);
+      localStorage.setItem('fh_wallet', newBal);
+      setWalletTransactions([
+        { id: `tx-${Date.now()}`, type: 'debit', desc: `Payment for Booking`, amount: finalPayable, date: 'Just now' },
+        ...walletTransactions
+      ]);
+    }
+
     setSubmitting(true);
     try {
+      const activeAddr = addresses.find(a => a.id === selectedAddressId)?.text || form.address;
       const res = await fetch(`${API}/api/bookings`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, city, notes: `${visitMode}${appliedPromo ? ` | Promo: ${appliedPromo.code}` : ''}${form.notes ? ` | ${form.notes}` : ''}`, items: cart, source: 'website' })
+        body: JSON.stringify({
+          ...form,
+          address: activeAddr,
+          city,
+          notes: `${visitMode}${isExpress ? ' | ⚡ Express 30m' : ''}${tipAmount ? ` | Tip: ₹${tipAmount}` : ''}${appliedPromo ? ` | Promo: ${appliedPromo.code}` : ''}`,
+          items: cart,
+          total_amount: finalPayable,
+          source: 'website'
+        })
       });
       const data = await res.json();
-      if (res.ok) { setBookingSuccess(data); setCart([]); setAppliedPromo(null); loadAll(); }
+      if (res.ok) { setBookingSuccess(data); setCart([]); setAppliedPromo(null); setTipAmount(0); setIsExpress(false); loadAll(); }
       else alert(data.error || 'Could not create booking');
     } finally { setSubmitting(false); }
   };
@@ -236,31 +373,47 @@ export default function App() {
     setChatInput(''); loadAll();
   };
 
+  const createTicket = (e) => {
+    e.preventDefault();
+    if (!ticketForm.subject) return;
+    setTickets([
+      { id: `TKT-${Math.floor(100 + Math.random() * 900)}`, subject: ticketForm.subject, category: ticketForm.category, status: 'Open', date: 'Just now' },
+      ...tickets
+    ]);
+    setShowTicketModal(false);
+    setTicketForm({ subject: '', category: 'Service Quality', desc: '' });
+    alert('Support ticket created! A support manager will respond within 15 minutes.');
+  };
+
   const ongoingBookings = bookings.filter(b => ['pending', 'confirmed', 'assigned', 'in_progress'].includes(b.status));
   const pastBookings = bookings.filter(b => b.status === 'completed');
-
-  // Discount calc for display
   const discPct = (p, op) => op > p ? Math.round(((op - p) / op) * 100) : 0;
 
   // ===================== SERVICE CARD =====================
   const SrvCard = ({ srv, horizontal }) => {
     const qty = getQty(srv.id);
     const isSaved = bookmarks.includes(srv.id);
+    const isCompared = compareList.some(s => s.id === srv.id);
     const dp = discPct(srv.price, srv.original_price);
     return (
       <div className="srv-card" style={horizontal ? { minWidth: 272 } : {}}>
         <div className="srv-img-wrap">
           <img
-            src={srv.image_url || `https://source.unsplash.com/400x250/?${encodeURIComponent(srv.category_name || 'service')}`}
+            src={srv.image_url || `https://images.unsplash.com/photo-1581092334651-ddf19d571e17?w=500&q=80`}
             alt={srv.name} className="srv-photo" loading="lazy"
             onError={e => { e.target.src = 'https://images.unsplash.com/photo-1581092334651-ddf19d571e17?w=400&q=80'; }}
           />
           <div className="srv-rating-badge">
             <Star size={11} fill="#ffd000" color="#ffd000" /> {srv.rating} ({srv.reviews_count})
           </div>
-          <button className="srv-bookmark-btn" onClick={() => toggleBookmark(srv.id)}>
-            <Heart size={15} fill={isSaved ? '#ef4444' : 'none'} color={isSaved ? '#ef4444' : '#475569'} />
-          </button>
+          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
+            <button className="srv-bookmark-btn" onClick={() => toggleCompare(srv)} title={isCompared ? 'Remove from Compare' : 'Compare Service'} style={{ background: isCompared ? 'var(--primary)' : '#fff', color: isCompared ? '#fff' : '#0d0d0d' }}>
+              <Layers size={13} />
+            </button>
+            <button className="srv-bookmark-btn" onClick={() => toggleBookmark(srv.id)}>
+              <Heart size={15} fill={isSaved ? '#ef4444' : 'none'} color={isSaved ? '#ef4444' : '#475569'} />
+            </button>
+          </div>
           <span className="srv-cat-label">{srv.category_name}</span>
           {dp > 0 && <span className="srv-discount-badge">{dp}% OFF</span>}
         </div>
@@ -294,179 +447,9 @@ export default function App() {
     );
   };
 
-  // ===================== INVOICE GENERATOR =====================
-  const InvoiceModal = ({ booking }) => (
-    <div className="modal-bg" onClick={() => setInvoiceModal(null)}>
-      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ padding: 28, maxWidth: 480 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div><strong style={{ fontSize: '1.1rem' }}>FixoHub Invoice</strong><div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>#{booking.id} • {booking.created_at?.slice(0, 10)}</div></div>
-          <button onClick={() => setInvoiceModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.2rem' }}>✕</button>
-        </div>
-        <div style={{ background: '#f7f9fc', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-          <strong>{booking.customer_name}</strong>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{booking.address} • {booking.city}</div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{booking.scheduled_date} @ {booking.scheduled_slot}</div>
-        </div>
-        {(booking.items || []).map((item, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}>
-            <span>{item.name} × {item.qty}</span>
-            <strong>₹{item.price * item.qty}</strong>
-          </div>
-        ))}
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.86rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>₹{booking.total_amount}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}><span>Promo Discount</span><span>-₹0</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>GST 18%</span><span>₹{Math.round(booking.total_amount * 0.18)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1rem', borderTop: '2px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
-            <span>Total Paid</span><span>₹{Math.round(booking.total_amount * 1.18)}</span>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
-          <button className="btn btn-outline" onClick={() => window.print()}>🖨 Print</button>
-          <button className="btn btn-primary" onClick={() => setInvoiceModal(null)}>✓ Done</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ===================== SERVICE DETAIL MODAL =====================
-  const SvcDetailModal = ({ srv }) => {
-    const qty = getQty(srv.id);
-    return (
-      <div className="modal-bg" onClick={() => setSvcDetailModal(null)}>
-        <div className="modal-box" onClick={e => e.stopPropagation()}>
-          <div style={{ position: 'relative' }}>
-            <img
-              src={srv.image_url || 'https://images.unsplash.com/photo-1581092334651-ddf19d571e17?w=600&q=80'}
-              alt={srv.name} className="modal-photo"
-              onError={e => { e.target.src = 'https://images.unsplash.com/photo-1581092334651-ddf19d571e17?w=600&q=80'; }}
-            />
-            <button onClick={() => setSvcDetailModal(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'grid', placeItems: 'center', color: '#fff' }}><X size={16} /></button>
-            <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,121,255,0.9)', color: '#fff', padding: '4px 12px', borderRadius: 999, fontSize: '0.78rem', fontWeight: 700 }}>{srv.category_name}</div>
-          </div>
-          <div className="modal-body">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 10 }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>{srv.name}</h2>
-              <button onClick={() => toggleBookmark(srv.id)} style={{ background: 'none', border: 'none' }}>
-                <Heart size={20} fill={bookmarks.includes(srv.id) ? '#ef4444' : 'none'} color={bookmarks.includes(srv.id) ? '#ef4444' : '#475569'} />
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.84rem' }}><Star size={14} fill="#ffd000" color="#ffd000" /> <strong>{srv.rating}</strong> ({srv.reviews_count} reviews)</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.84rem' }}><Clock size={14} /> {srv.duration_mins} mins</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.84rem' }}><ShieldCheck size={14} color="#10b981" /> {srv.warranty_days}-day warranty</span>
-            </div>
-            <p style={{ fontSize: '0.88rem', color: '#475569', marginBottom: 16, lineHeight: 1.6 }}>{srv.description}</p>
-            {(srv.includes || []).length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <strong style={{ fontSize: '0.88rem', display: 'block', marginBottom: 8 }}>What's Included</strong>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                  {(srv.includes || []).map((inc, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.84rem' }}>
-                      <CheckCircle2 size={14} color="#10b981" /> {inc}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div style={{ background: '#f7f9fc', borderRadius: 12, padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16, textAlign: 'center' }}>
-              <div><div style={{ fontSize: '1rem', fontWeight: 800 }}>{srv.rating} ★</div><div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Rating</div></div>
-              <div><div style={{ fontSize: '1rem', fontWeight: 800 }}>{srv.reviews_count}</div><div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Reviews</div></div>
-              <div><div style={{ fontSize: '1rem', fontWeight: 800 }}>{srv.warranty_days}d</div><div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Warranty</div></div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '2px solid var(--border)', borderRadius: 14, padding: '14px 18px', position: 'sticky', bottom: 0 }}>
-              <div>
-                <span style={{ fontSize: '1.4rem', fontWeight: 800 }}>₹{srv.price}</span>
-                {srv.original_price > srv.price && <span style={{ fontSize: '0.88rem', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: 8 }}>₹{srv.original_price}</span>}
-              </div>
-              {getQty(srv.id) === 0 ? (
-                <button className="btn btn-primary" onClick={() => { addToCart(srv); setSvcDetailModal(null); }}><Plus size={16} /> Add to Cart</button>
-              ) : (
-                <div className="qty-stepper">
-                  <button onClick={() => updateQty(srv.id, -1)}><Minus size={14} /></button>
-                  <span>{getQty(srv.id)}</span>
-                  <button onClick={() => updateQty(srv.id, 1)}><Plus size={14} /></button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ===================== PROVIDER PROFILE MODAL =====================
-  const ProviderModal = ({ p }) => (
-    <div className="modal-bg" onClick={() => setProviderModal(null)}>
-      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
-        <div className="modal-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="prov-av" style={{ background: p.avatar_color || '#0079ff', width: 64, height: 64, fontSize: '1.4rem' }}>
-                {p.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
-              </div>
-              <div>
-                <strong style={{ fontSize: '1.1rem' }}>{p.name}</strong>
-                <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{p.specialty}</div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{p.city}</div>
-              </div>
-            </div>
-            <button onClick={() => setProviderModal(null)} style={{ background: 'none', border: 'none' }}><X size={20} /></button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 18, textAlign: 'center' }}>
-            <div style={{ background: '#f7f9fc', borderRadius: 10, padding: '12px 8px' }}><div style={{ fontSize: '1.1rem', fontWeight: 800 }}>{p.rating} ★</div><div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Rating</div></div>
-            <div style={{ background: '#f7f9fc', borderRadius: 10, padding: '12px 8px' }}><div style={{ fontSize: '1.1rem', fontWeight: 800 }}>{p.jobs_completed}</div><div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Jobs Done</div></div>
-            <div style={{ background: '#f7f9fc', borderRadius: 10, padding: '12px 8px' }}><div style={{ fontSize: '1.1rem', fontWeight: 800 }}>3 yrs</div><div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Experience</div></div>
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <strong style={{ fontSize: '0.88rem', display: 'block', marginBottom: 10 }}>Services Offered</strong>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {services.filter(s => s.category_name === p.specialty).slice(0, 6).map(s => (
-                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: '#f7f9fc', borderRadius: 10, padding: '8px 12px' }}>
-                  <span style={{ fontSize: '0.84rem' }}>{s.name}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>₹{s.price}</span>
-                    <button className="btn btn-primary btn-sm" onClick={() => { addToCart(s); setProviderModal(null); }}><Plus size={12} /> Add</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <button className="btn btn-outline" onClick={() => { setActivePartner(p); setProviderModal(null); setView('chats'); }}><MessageSquare size={15} /> Chat</button>
-            <button className="btn btn-primary" onClick={() => { setCartOpen(true); setProviderModal(null); }}>Book Now</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ===================== BOOKING TRACKER =====================
-  const BookingTracker = ({ status }) => {
-    const idx = STATUS_TRACK[status] || 1;
-    return (
-      <div>
-        <div className="booking-track">
-          {TRACK_STEPS.map((step, i) => (
-            <div key={step} className="track-step">
-              <div className={`track-dot ${i < idx ? 'done' : i === idx - 1 ? 'active' : ''}`}>
-                {i < idx ? <CheckCheck size={11} /> : i + 1}
-              </div>
-              {i < TRACK_STEPS.length - 1 && <div className={`track-line ${i < idx - 1 ? 'done' : ''}`} />}
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-          {TRACK_STEPS.map((s, i) => <span key={s} className="track-label" style={{ color: i < idx ? 'var(--primary)' : 'var(--muted)', fontWeight: i === idx - 1 ? 700 : 400 }}>{s}</span>)}
-        </div>
-      </div>
-    );
-  };
-
-  // ===================== RENDER =====================
   return (
     <div>
-      {/* ===== HEADER ===== */}
+      {/* ===== HEADER (NO PARTNER/ADMIN BUTTONS) ===== */}
       <header className="header-wrap">
         <div className="container">
           <div className="header-top">
@@ -479,11 +462,9 @@ export default function App() {
             </a>
 
             <div className="pill-search">
-              <div style={{ position: 'relative' }}>
-                <select value={city} onChange={e => setCity(e.target.value)}>
-                  {CITIES.map(c => <option key={c}>{c}</option>)}
-                </select>
-              </div>
+              <select value={city} onChange={e => setCity(e.target.value)}>
+                {CITIES.map(c => <option key={c}>{c}</option>)}
+              </select>
               <input type="text" placeholder="Search Laptop, Mobile, TV, AC, Cleaning..." value={search}
                 onChange={e => { setSearch(e.target.value); if (view !== 'home') setView('home'); }}
                 onKeyDown={e => { if (e.key === 'Enter') { setView('home'); setTimeout(() => document.getElementById('svc-sec')?.scrollIntoView({ behavior: 'smooth' }), 50); } }}
@@ -494,37 +475,52 @@ export default function App() {
             </div>
 
             <div className="h-actions">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f7f9fc', borderRadius: 20, padding: '5px 10px', fontSize: '0.8rem', fontWeight: 600, border: '1.5px solid var(--border)', cursor: 'pointer' }}
-                onClick={() => setShowCityPop(!showCityPop)}>
-                <MapPin size={14} color="var(--primary)" /> {city} <ChevronDown size={12} />
+              {/* Wallet Pill */}
+              <div
+                onClick={() => setView('wallet')}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ecfdf5', border: '1.5px solid #10b981', color: '#047857', padding: '6px 12px', borderRadius: 999, fontSize: '0.82rem', fontWeight: 800, cursor: 'pointer' }}
+                title="View FixoWallet"
+              >
+                <Wallet size={15} color="#059669" /> ₹{walletBalance}
               </div>
+
+              {/* Compare Pill */}
+              {compareList.length > 0 && (
+                <button className="btn btn-outline btn-sm" onClick={() => setShowCompareModal(true)} style={{ background: '#eff6ff', borderColor: '#3b82f6', color: '#1d4ed8' }}>
+                  <Layers size={14} /> Compare ({compareList.length})
+                </button>
+              )}
+
+              {/* Scratch card pill */}
+              <button className="btn btn-sm" onClick={() => setShowScratchModal(true)} style={{ background: '#fef3c7', border: '1.5px solid #f59e0b', color: '#b45309', fontWeight: 700 }}>
+                <Gift size={14} /> Scratch & Win
+              </button>
+
               <button className="icon-btn" onClick={() => setShowNotif(!showNotif)} title="Notifications">
                 <Bell size={16} />
                 <span className="notif-dot" />
               </button>
+
               <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle Dark Mode">
                 {darkMode ? <Sun size={16} /> : <Moon size={16} />}
               </button>
-              <a href="/partner/" className="btn btn-primary" style={{ textDecoration: 'none' }}>
-                {lang === 'HI' ? 'पार्टनर' : 'Partner Login'}
-              </a>
+
               {showNotif && (
                 <div style={{ position: 'absolute', top: 46, right: 0, width: 300, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 14, padding: 14, boxShadow: '0 12px 32px rgba(0,0,0,0.15)', zIndex: 80 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                     <strong style={{ fontSize: '0.9rem' }}>Notifications</strong>
-                    <button onClick={() => setShowNotif(false)} style={{ background: 'none', border: 'none', fontSize: '0.8rem', color: 'var(--muted)' }}>Mark all read</button>
+                    <button onClick={() => setShowNotif(false)} style={{ background: 'none', border: 'none', fontSize: '0.8rem', color: 'var(--muted)' }}>Clear</button>
                   </div>
                   {[
-                    { icon: '🔧', msg: 'Booking #11059: Provider is On The Way!', time: '2 min ago' },
-                    { icon: '🎁', msg: 'Promo FIXO50: Get 50% OFF on next order!', time: '1h ago' },
-                    { icon: '💬', msg: '1 new bid received on your Custom Request!', time: '3h ago' },
-                    { icon: '⭐', msg: 'Rate your last Laptop Repair service', time: 'Yesterday' }
+                    { icon: '💰', msg: '₹200 Cashback credited to your FixoWallet!', time: '5 min ago' },
+                    { icon: '🎁', msg: 'Scratch Card Unlocked: 30% OFF Coupon!', time: '1h ago' },
+                    { icon: '🔧', msg: 'Booking #11059: Technician is 2 km away', time: '2h ago' }
                   ].map((n, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: '1.1rem' }}>{n.icon}</span>
+                    <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                      <span style={{ fontSize: '1.2rem' }}>{n.icon}</span>
                       <div>
                         <div style={{ fontSize: '0.8rem' }}>{n.msg}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>{n.time}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{n.time}</div>
                       </div>
                     </div>
                   ))}
@@ -535,15 +531,18 @@ export default function App() {
 
           <div className="header-sub">
             <nav className="sub-links">
-              {[['home', 'Home'], ['bookings', `Bookings (${bookings.length})`], ['requests', `Requests (${requests.length})`], ['chats', 'Chats'], ['profile', 'Profile']].map(([v, label]) => (
+              {[
+                ['home', 'Home'],
+                ['bookings', `Bookings (${bookings.length})`],
+                ['requests', `Requests (${requests.length})`],
+                ['chats', 'Chats'],
+                ['wallet', 'FixoWallet'],
+                ['profile', 'Profile']
+              ].map(([v, label]) => (
                 <button key={v} className={`sub-link ${view === v ? 'active' : ''}`} onClick={() => setView(v)}>{label}</button>
               ))}
-              <a href="/admin/" className="sub-link">Admin</a>
             </nav>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '4px 10px', borderRadius: 20 }}>
-                🏅 {loyaltyPoints} pts
-              </div>
               <button className="btn btn-outline-dark" style={{ padding: '7px 14px' }} onClick={() => { setBookingSuccess(null); setCartOpen(true); }}>
                 <ShoppingBag size={15} /> Cart {cartCount > 0 && <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-grid', placeItems: 'center', fontSize: '0.7rem', fontWeight: 800 }}>{cartCount}</span>}
               </button>
@@ -561,7 +560,7 @@ export default function App() {
               <div className="hero-banner">
                 <div className="hero-left">
                   <div style={{ fontSize: '0.78rem', fontWeight: 700, background: 'rgba(255,255,255,0.15)', display: 'inline-block', padding: '4px 12px', borderRadius: 999, marginBottom: 14, backdropFilter: 'blur(4px)' }}>
-                    🔥 50% OFF on First Booking — Use WELCOME20
+                    🔥 Pay with FixoWallet & Get Flat 5% Extra Cashback!
                   </div>
                   <h1>
                     {HERO_SLIDES[heroSlide].title} <span>{HERO_SLIDES[heroSlide].span}</span>
@@ -609,9 +608,9 @@ export default function App() {
               <div className="trust-bar">
                 {[
                   { icon: '🛡️', text: 'Background Verified Pros' },
+                  { icon: '⚡', text: '30-Min Express Service' },
                   { icon: '📅', text: '365-Day Service Warranty' },
-                  { icon: '🔁', text: 'Free Rescheduling' },
-                  { icon: '💳', text: 'Secure UPI & Card Payments' },
+                  { icon: '💳', text: 'FixoWallet & UPI Secure' },
                   { icon: '📍', text: 'Doorstep & Store Service' },
                   { icon: '💬', text: 'Live Chat Support' }
                 ].map((t, i) => (
@@ -623,28 +622,45 @@ export default function App() {
             </div>
           </section>
 
-          {/* PROMO BANNERS */}
-          {promos.length > 0 && (
-            <section className="section-sm">
-              <div className="container">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                  {promos.slice(0, 3).map(p => (
-                    <div key={p.id} className="promo-banner">
-                      <div>
-                        <div style={{ fontSize: '0.76rem', color: '#78350f', marginBottom: 4 }}>{p.description}</div>
-                        <div className="promo-code">{p.code}</div>
-                        <div style={{ fontSize: '0.74rem', color: '#92400e', marginTop: 2 }}>Min. order ₹{p.min_order} • Save up to ₹{p.max_discount}</div>
-                      </div>
-                      <div style={{ background: '#fef3c7', border: '2px solid #fcd34d', borderRadius: 10, padding: '8px 14px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#b45309' }}>{p.discount_percent}%</div>
-                        <div style={{ fontSize: '0.68rem', color: '#92400e', fontWeight: 600 }}>OFF</div>
-                      </div>
-                    </div>
-                  ))}
+          {/* SUPER SAVER COMBOS (NEW FEATURE) */}
+          <section className="section-sm">
+            <div className="container">
+              <div className="sec-header">
+                <div>
+                  <h2>🔥 Super Saver Combo Packages</h2>
+                  <p>Multi-service bundled packages with huge instant discounts</p>
                 </div>
               </div>
-            </section>
-          )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+                {SUPER_COMBOS.map(combo => (
+                  <div key={combo.id} style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ position: 'relative' }}>
+                      <img src={combo.img} alt={combo.title} style={{ width: '100%', height: 160, objectFit: 'cover' }} />
+                      <span style={{ position: 'absolute', top: 10, right: 10, background: '#ef4444', color: '#fff', fontSize: '0.74rem', fontWeight: 800, padding: '4px 10px', borderRadius: 8 }}>{combo.badge}</span>
+                      <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '0.72rem', padding: '3px 8px', borderRadius: 6 }}>{combo.warranty}</span>
+                    </div>
+                    <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <strong style={{ fontSize: '1rem' }}>{combo.title}</strong>
+                      <div style={{ fontSize: '0.82rem', color: '#475569' }}>
+                        {combo.services.map((s, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                            <CheckCheck size={13} color="#10b981" /> {s}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+                        <div>
+                          <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>₹{combo.price}</span>
+                          <span style={{ fontSize: '0.84rem', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: 6 }}>₹{combo.original_price}</span>
+                        </div>
+                        <button className="btn btn-primary btn-sm" onClick={() => addComboToCart(combo)}><Plus size={14} /> Book Combo</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
 
           {/* CATEGORIES */}
           <section className="section" id="categories">
@@ -696,13 +712,12 @@ export default function App() {
             </div>
           </section>
 
-          {/* FEATURED PROVIDERS */}
+          {/* FEATURED PROVIDERS (NO PARTNER LOGIN BUTTON) */}
           {providers.length > 0 && (
             <section className="section-sm">
               <div className="container">
                 <div className="sec-header" style={{ marginBottom: 14 }}>
                   <div><h2>Featured Ad Providers</h2><p>Top-rated pros with exclusive deals this week</p></div>
-                  <a href="/partner/" className="btn btn-outline btn-sm" style={{ textDecoration: 'none' }}>Join as Partner →</a>
                 </div>
                 <div className="featured-scroll">
                   {providers.map(p => (
@@ -729,61 +744,7 @@ export default function App() {
             </section>
           )}
 
-          {/* ONGOING BOOKINGS */}
-          {ongoingBookings.length > 0 && (
-            <section className="section-sm">
-              <div className="container">
-                <div className="sec-header" style={{ marginBottom: 14 }}>
-                  <h2>Ongoing Bookings</h2>
-                  <button className="btn btn-outline btn-sm" onClick={() => setView('bookings')}>View All</button>
-                </div>
-                <div className="providers-grid">
-                  {ongoingBookings.slice(0, 3).map(b => (
-                    <div key={b.id} className="booking-card">
-                      <div className="booking-card-header">
-                        <div>
-                          <strong style={{ fontSize: '0.94rem' }}>{b.items.map(i => i.name).join(', ')}</strong>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: 2 }}>{b.scheduled_date} • {b.scheduled_slot}</div>
-                        </div>
-                        <span className={`badge badge-${b.status}`}>{b.status.replace('_', ' ')}</span>
-                      </div>
-                      <BookingTracker status={b.status} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', alignItems: 'center' }}>
-                        <span>Provider: <strong>{b.technician_name || 'Assigning...'}</strong></span>
-                        <button className="btn btn-outline btn-sm" onClick={() => setView('chats')}><MessageSquare size={13} /> Chat</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* HORIZONTAL SCROLL — Popular in Laptop & PC */}
-          {categories.slice(0, 3).map(cat => {
-            const catSrvs = services.filter(s => s.category_id === cat.id).slice(0, 8);
-            if (!catSrvs.length) return null;
-            return (
-              <section key={cat.id} className="section-sm">
-                <div className="container">
-                  <div className="sec-header" style={{ marginBottom: 14 }}>
-                    <div>
-                      <h2>{cat.name} Solutions</h2>
-                      <p>Top services in {cat.name} — book now with upfront pricing</p>
-                    </div>
-                    <button className="btn btn-outline btn-sm" onClick={() => { setSelectedCat(cat.id); document.getElementById('svc-sec')?.scrollIntoView({ behavior: 'smooth' }); }}>
-                      See All →
-                    </button>
-                  </div>
-                  <div className="h-scroll-row">
-                    {catSrvs.map(srv => <SrvCard key={srv.id} srv={srv} horizontal />)}
-                  </div>
-                </div>
-              </section>
-            );
-          })}
-
-          {/* ALL SERVICES */}
+          {/* ALL SERVICES SECTION WITH ADVANCED FILTERS */}
           <section className="section" id="svc-sec">
             <div className="container">
               <div className="sec-header">
@@ -791,12 +752,23 @@ export default function App() {
                   <h2>{selectedCat === 'all' ? 'All Services & Solutions' : categories.find(c => c.id === selectedCat)?.name}</h2>
                   <p>{filteredServices.length} services with upfront pricing & warranty</p>
                 </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Price Filter */}
+                  <select value={priceFilter} onChange={e => setPriceFilter(e.target.value)} style={{ padding: '8px 12px', borderRadius: 9, border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontWeight: 600, fontSize: '0.84rem' }}>
+                    <option value="all">Price: All</option>
+                    <option value="under500">Under ₹500</option>
+                    <option value="500to1500">₹500 - ₹1,500</option>
+                    <option value="above1500">Above ₹1,500</option>
+                  </select>
+
+                  {/* Visit Mode */}
                   <div style={{ display: 'flex', gap: 6 }}>
                     {['At Doorstep', 'At Store'].map(m => (
                       <button key={m} onClick={() => setVisitMode(m)} className="btn btn-sm" style={{ background: visitMode === m ? 'var(--primary)' : '#fff', color: visitMode === m ? '#fff' : '#334155', border: '1.5px solid', borderColor: visitMode === m ? 'var(--primary)' : '#d4d9e0' }}>{m}</button>
                     ))}
                   </div>
+
+                  {/* Sort */}
                   <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '8px 12px', borderRadius: 9, border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontWeight: 600, fontSize: '0.84rem' }}>
                     <option value="popular">Popular</option>
                     <option value="price_asc">Price: Low → High</option>
@@ -810,109 +782,14 @@ export default function App() {
                 <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
                   <Search size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
                   <h3>No services found</h3>
-                  <p style={{ marginBottom: 16 }}>Try a different search or browse by category</p>
-                  <button className="btn btn-primary" onClick={() => { setSearch(''); setSelectedCat('all'); }}>Reset Filters</button>
+                  <p style={{ marginBottom: 16 }}>Try resetting price or search filter</p>
+                  <button className="btn btn-primary" onClick={() => { setSearch(''); setSelectedCat('all'); setPriceFilter('all'); }}>Reset Filters</button>
                 </div>
               ) : (
                 <div className="services-grid">
                   {filteredServices.map(srv => <SrvCard key={srv.id} srv={srv} />)}
                 </div>
               )}
-            </div>
-          </section>
-
-          {/* CAN'T FIND SERVICE */}
-          <section className="section-sm">
-            <div className="container">
-              <div style={{ background: 'var(--primary-soft)', borderRadius: 16, padding: '28px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-                <div>
-                  <h3 style={{ fontSize: '1.2rem', marginBottom: 4 }}>Can't find the service?</h3>
-                  <p style={{ fontSize: '0.86rem', color: 'var(--muted)' }}>Tell us what you need and verified experts will send you custom bids within minutes.</p>
-                </div>
-                <button className="btn btn-primary" onClick={() => setReqModal(true)}><FilePlus2 size={16} /> Post Custom Request</button>
-              </div>
-            </div>
-          </section>
-
-          {/* MID CTA BANNER */}
-          <section className="section-sm">
-            <div className="container">
-              <div className="mid-cta">
-                <div>
-                  <h2>Book a Service in <span style={{ color: '#ffd000' }}>60 Seconds!</span></h2>
-                  <p>Transparent pricing, certified experts, and real-time tracking at your fingertips.</p>
-                  <div className="mid-cta-tags">
-                    {['Laptop Repair', 'Mobile Screen', 'AC Service', 'Deep Cleaning', 'TV Mount', 'Plumbing', 'Electrician'].map(t => (
-                      <span key={t} className="cta-tag">{t}</span>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <button className="btn btn-yellow" onClick={() => document.getElementById('svc-sec')?.scrollIntoView({ behavior: 'smooth' })}>Explore All Services</button>
-                    <button className="btn" style={{ background: 'transparent', color: '#fff', border: '1.5px solid rgba(255,255,255,0.5)' }} onClick={() => setReqModal(true)}>Custom Request</button>
-                  </div>
-                </div>
-                <img src="https://images.unsplash.com/photo-1581092334651-ddf19d571e17?w=300&q=80" alt="Technician" className="mid-cta-img"
-                  onError={e => { e.target.style.display = 'none'; }} />
-              </div>
-            </div>
-          </section>
-
-          {/* TOP PROVIDERS */}
-          <section className="section" id="providers">
-            <div className="container">
-              <div className="sec-header">
-                <div><h2>Top Verified Providers</h2><p>Multi-vendor partners ready for doorstep visits</p></div>
-                <a href="/partner/" className="btn btn-outline btn-sm" style={{ textDecoration: 'none' }}>Partner Login / Join →</a>
-              </div>
-              <div className="providers-grid">
-                {providers.map(p => (
-                  <div key={p.id} className="provider-card" onClick={() => setProviderModal(p)} style={{ cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div className="provider-avatar" style={{ background: p.avatar_color || '#0079ff' }}>
-                        {p.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
-                      </div>
-                      <div>
-                        <h4 style={{ fontSize: '0.94rem', fontWeight: 700 }}>{p.name}</h4>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{p.specialty} • {p.city}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, fontSize: '0.76rem', textAlign: 'center' }}>
-                      <div style={{ background: '#f7f9fc', borderRadius: 8, padding: '5px 4px' }}><strong>★ {p.rating}</strong><div style={{ color: 'var(--muted)', fontSize: '0.68rem' }}>Rating</div></div>
-                      <div style={{ background: '#f7f9fc', borderRadius: 8, padding: '5px 4px' }}><strong>{p.jobs_completed}</strong><div style={{ color: 'var(--muted)', fontSize: '0.68rem' }}>Jobs</div></div>
-                      <div style={{ background: '#d1fae5', borderRadius: 8, padding: '5px 4px' }}><strong style={{ color: '#047857' }}>✓</strong><div style={{ color: '#047857', fontSize: '0.68rem' }}>Verified</div></div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={e => { e.stopPropagation(); setActivePartner(p); setView('chats'); }}><MessageSquare size={13} /> Chat</button>
-                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={e => { e.stopPropagation(); setCartOpen(true); }}>Book</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* HOW IT WORKS */}
-          <section className="section" style={{ background: '#fff', padding: '44px 0' }}>
-            <div className="container">
-              <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                <h2 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 6 }}>Book Trusted Services in 4 Simple Steps</h2>
-                <p style={{ color: 'var(--muted)' }}>Fast, transparent, and backed by FixoHub guarantee</p>
-              </div>
-              <div className="steps-grid">
-                {[
-                  { n: '1', pill: 'Step One', title: 'Choose a Service', desc: 'Browse 100+ Laptop, Mobile, TV, AC & Home services by category or search.', icon: <Search size={20} color="var(--primary)" /> },
-                  { n: '2', pill: 'Step Two', title: 'Pick Date & Time', desc: 'Select your preferred doorstep slot from morning to evening — 7 days a week.', icon: <Clock size={20} color="var(--primary)" /> },
-                  { n: '3', pill: 'Step Three', title: 'Confirm & Pay', desc: 'Instant invoice, provider assignment, UPI / Card / COD — 100% secure.', icon: <ShieldCheck size={20} color="var(--primary)" /> },
-                  { n: '4', pill: 'Step Four', title: 'Get It Done + Rate', desc: 'Verified pro arrives, completes service with warranty & you rate the job.', icon: <Award size={20} color="var(--primary)" /> }
-                ].map((s, i) => (
-                  <div key={i} className="step-card">
-                    <div className="step-num">{s.n}</div>
-                    <span className="step-pill">{s.pill}</span>
-                    <h4>{s.title}</h4>
-                    <p>{s.desc}</p>
-                  </div>
-                ))}
-              </div>
             </div>
           </section>
 
@@ -927,13 +804,6 @@ export default function App() {
                     <span className="rating-num">4.9</span>
                     <span className="rating-stars">★★★★★</span>
                     <span className="rating-txt">Based on 12,400+ Reviews</span>
-                  </div>
-                  <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    {['Instant Booking', '365-Day Warranty', 'Expert Technicians', 'Doorstep Service'].map(t => (
-                      <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.84rem', fontWeight: 600, color: '#1d4ed8' }}>
-                        <CheckCircle2 size={14} color="#1d4ed8" /> {t}
-                      </div>
-                    ))}
                   </div>
                 </div>
                 <div className="testi-cards">
@@ -951,32 +821,6 @@ export default function App() {
             </div>
           </section>
 
-          {/* BLOGS */}
-          {blogs.length > 0 && (
-            <section className="section">
-              <div className="container">
-                <div className="sec-header">
-                  <div><h2>Tech & Home Care Guides</h2><p>Expert tips to maintain your devices and home</p></div>
-                  <button className="btn btn-outline btn-sm">View All Guides →</button>
-                </div>
-                <div className="blogs-grid">
-                  {blogs.slice(0, 3).map((bl, i) => (
-                    <div key={bl.id} className="blog-card">
-                      <img src={BLOG_IMGS[i % BLOG_IMGS.length]} alt={bl.title} className="blog-img"
-                        onError={e => { e.target.style.display = 'none'; }} />
-                      <div className="blog-body">
-                        <span className="blog-cat">{bl.category}</span>
-                        <div className="blog-title">{bl.title}</div>
-                        <div className="blog-summary">{bl.summary}</div>
-                        <button className="btn btn-outline btn-sm" style={{ marginTop: 10 }}>Read More →</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-
           {/* FAQ */}
           <section className="section" style={{ paddingTop: 0 }}>
             <div className="container">
@@ -985,15 +829,11 @@ export default function App() {
                   <div style={{ width: 48, height: 48, background: 'var(--primary-soft)', borderRadius: 12, display: 'grid', placeItems: 'center', marginBottom: 14 }}>
                     <HelpCircle size={24} color="var(--primary)" />
                   </div>
-                  <h3 style={{ marginBottom: 10 }}>Still Need Help?</h3>
-                  <p style={{ fontSize: '0.86rem', color: 'var(--muted)', marginBottom: 20, lineHeight: 1.6 }}>Post a custom request or chat directly with our verified providers. 24/7 support available.</p>
+                  <h3 style={{ marginBottom: 10 }}>Need Fast Support?</h3>
+                  <p style={{ fontSize: '0.86rem', color: 'var(--muted)', marginBottom: 20 }}>Raise a support ticket or chat with verified professionals 24/7.</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <button className="btn btn-primary" onClick={() => setView('chats')}><MessageSquare size={15} /> Chat Support</button>
-                    <button className="btn btn-outline" onClick={() => setReqModal(true)}><FilePlus2 size={15} /> Post a Request</button>
-                    <div style={{ marginTop: 10, padding: '12px 14px', background: 'var(--primary-soft)', borderRadius: 10 }}>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>📞 Customer Support</div>
-                      <div style={{ fontSize: '0.84rem', color: '#334155' }}>1800-FIXOHUB (Mon–Sun 7AM–10PM)</div>
-                    </div>
+                    <button className="btn btn-primary" onClick={() => setShowTicketModal(true)}><FileText size={15} /> Raise Support Ticket</button>
+                    <button className="btn btn-outline" onClick={() => setView('chats')}><MessageSquare size={15} /> Live Chat Support</button>
                   </div>
                 </div>
                 <div>
@@ -1013,43 +853,47 @@ export default function App() {
               </div>
             </div>
           </section>
+        </>
+      )}
 
-          {/* APP DOWNLOAD */}
-          <section className="section-sm">
-            <div className="container">
-              <div className="app-download">
+      {/* ===== WALLET VIEW (NEW FEATURE) ===== */}
+      {view === 'wallet' && (
+        <div className="container section">
+          <div style={{ maxWidth: 800, margin: '0 auto' }}>
+            <div style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', borderRadius: 20, padding: 32, color: '#fff', marginBottom: 24, boxShadow: '0 12px 30px rgba(16,185,129,0.25)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2>Get the FixoHub App</h2>
-                  <p>Book services, track your provider in real-time, chat and pay — all from your phone.</p>
-                  <div className="app-badges">
-                    <a href="#" className="app-badge">
-                      <span style={{ fontSize: '1.4rem' }}>📱</span>
-                      <div><span className="ab-title">Download on</span><span className="ab-name">Google Play</span></div>
-                    </a>
-                    <a href="#" className="app-badge">
-                      <span style={{ fontSize: '1.4rem' }}>🍎</span>
-                      <div><span className="ab-title">Download on</span><span className="ab-name">App Store</span></div>
-                    </a>
-                    <a href="/HomeServePro.apk" className="app-badge" download>
-                      <Download size={20} />
-                      <div><span className="ab-title">Direct</span><span className="ab-name">APK Download</span></div>
-                    </a>
-                  </div>
+                  <span style={{ fontSize: '0.85rem', opacity: 0.85, fontWeight: 600 }}>Total FixoWallet Balance</span>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 800, margin: '4px 0' }}>₹{walletBalance}</div>
+                  <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: 999 }}>⚡ 1-Click Zero Failure Checkout</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 14, padding: '14px 18px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffd000' }}>4.9 ★</div>
-                    <div style={{ fontSize: '0.78rem', opacity: 0.75 }}>12,400+ reviews</div>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 14, padding: '14px 18px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffd000' }}>50K+</div>
-                    <div style={{ fontSize: '0.78rem', opacity: 0.75 }}>Happy customers</div>
-                  </div>
-                </div>
+                <button className="btn btn-yellow" onClick={() => setShowAddWalletModal(true)} style={{ padding: '12px 20px', fontSize: '0.92rem' }}>
+                  <Plus size={16} /> Add Funds
+                </button>
               </div>
             </div>
-          </section>
-        </>
+
+            <h3 style={{ fontSize: '1.2rem', marginBottom: 14 }}>Recent Wallet Transactions</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {walletTransactions.map(tx => (
+                <div key={tx.id} style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: tx.type === 'credit' ? '#d1fae5' : '#fee2e2', color: tx.type === 'credit' ? '#059669' : '#dc2626', display: 'grid', placeItems: 'center', fontWeight: 800 }}>
+                      {tx.type === 'credit' ? '↓' : '↑'}
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: '0.92rem' }}>{tx.desc}</strong>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{tx.date}</div>
+                    </div>
+                  </div>
+                  <strong style={{ fontSize: '1.1rem', color: tx.type === 'credit' ? '#059669' : '#dc2626' }}>
+                    {tx.type === 'credit' ? `+₹${tx.amount}` : `-₹${tx.amount}`}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ===== BOOKINGS VIEW ===== */}
@@ -1057,7 +901,7 @@ export default function App() {
         <div className="container section">
           <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 800, flex: 1 }}>My Bookings</h2>
-            {[['ongoing', 'Ongoing'], ['past', 'Past'], ['cancelled', 'Cancelled']].map(([t, l]) => (
+            {[['ongoing', 'Ongoing'], ['past', 'Past']].map(([t, l]) => (
               <button key={t} onClick={() => setBookingTab(t)} className="btn btn-sm" style={{ background: bookingTab === t ? 'var(--primary)' : '#fff', color: bookingTab === t ? '#fff' : '#334155', border: '1.5px solid', borderColor: bookingTab === t ? 'var(--primary)' : '#d4d9e0' }}>{l}</button>
             ))}
           </div>
@@ -1078,16 +922,14 @@ export default function App() {
                     </div>
                     <span className={`badge badge-${b.status}`}>{b.status.replace('_', ' ')}</span>
                   </div>
-                  <BookingTracker status={b.status} />
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: '0.78rem' }}>
                     <div><span style={{ color: 'var(--muted)' }}>Provider</span><br /><strong>{b.technician_name || 'Assigning...'}</strong></div>
-                    <div><span style={{ color: 'var(--muted)' }}>Address</span><br /><strong>{b.city}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>Address</span><br /><strong>{b.address || b.city}</strong></div>
                     <div><span style={{ color: 'var(--muted)' }}>Amount</span><br /><strong>₹{b.total_amount}</strong></div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-outline btn-sm" onClick={() => setActivePartner(providers.find(p => p.name === b.technician_name) || providers[0])}><MessageSquare size={13} /> Chat</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => setView('chats')}><MessageSquare size={13} /> Chat</button>
                     <button className="btn btn-outline btn-sm" onClick={() => setInvoiceModal(b)}><FileText size={13} /> Invoice</button>
-                    <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }}>Reschedule</button>
                   </div>
                 </div>
               ))}
@@ -1110,30 +952,23 @@ export default function App() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button className="btn btn-outline btn-sm" onClick={() => setInvoiceModal(b)}><FileText size={13} /> Invoice</button>
                       <button className="btn btn-outline btn-sm" onClick={() => setRatingModal(b)}><Star size={13} /> Rate</button>
-                      <button className="btn btn-primary btn-sm">Re-Book</button>
                     </div>
                   </div>
                 ))}
             </>
           )}
-          {bookingTab === 'cancelled' && <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>No cancelled bookings. 🎉</div>}
         </div>
       )}
 
-      {/* ===== CUSTOM REQUESTS VIEW ===== */}
+      {/* ===== REQUESTS VIEW ===== */}
       {view === 'requests' && (
         <div className="container section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Custom Requests</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Custom Requests & Bids</h2>
             <button className="btn btn-primary" onClick={() => setReqModal(true)}><FilePlus2 size={16} /> New Request</button>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            {['All', 'Open', 'Pending', 'Booked'].map(f => (
-              <button key={f} onClick={() => setReqFilter(f)} className="btn btn-sm" style={{ background: reqFilter === f ? 'var(--primary)' : '#fff', color: reqFilter === f ? '#fff' : '#334155', border: '1.5px solid', borderColor: reqFilter === f ? 'var(--primary)' : '#d4d9e0' }}>{f}</button>
-            ))}
-          </div>
           <div style={{ display: 'grid', gap: 14 }}>
-            {requests.filter(r => reqFilter === 'All' || r.status === reqFilter.toLowerCase()).map(r => (
+            {requests.map(r => (
               <div key={r.id} className="req-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
@@ -1145,32 +980,23 @@ export default function App() {
                 <p style={{ fontSize: '0.84rem', color: '#475569' }}>{r.description}</p>
                 {r.bids?.length > 0 && (
                   <div style={{ marginTop: 6 }}>
-                    <strong style={{ fontSize: '0.82rem', display: 'block', marginBottom: 6 }}>Bids ({r.bids.length})</strong>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {r.bids.map((bid, bi) => (
-                        <div key={bi} className="bid-item">
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: '0.86rem' }}>{bid.provider_name}</div>
-                            <div style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>★ {bid.rating} • {bid.delivery_time}</div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <strong>₹{bid.amount}</strong>
-                            {r.status === 'open' && <button className="btn btn-primary btn-sm" onClick={() => acceptBid(r.id)}>Accept</button>}
-                          </div>
+                    <strong style={{ fontSize: '0.82rem', display: 'block', marginBottom: 6 }}>Bids Received</strong>
+                    {r.bids.map((bid, bi) => (
+                      <div key={bi} className="bid-item">
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.86rem' }}>{bid.provider_name}</div>
+                          <div style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>★ {bid.rating} • {bid.delivery_time}</div>
                         </div>
-                      ))}
-                    </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <strong>₹{bid.amount}</strong>
+                          {r.status === 'open' && <button className="btn btn-primary btn-sm" onClick={() => acceptBid(r.id)}>Accept</button>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             ))}
-            {requests.length === 0 && (
-              <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>
-                <FilePlus2 size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-                <p>No custom requests yet.</p>
-                <button className="btn btn-primary btn-sm" style={{ marginTop: 10 }} onClick={() => setReqModal(true)}>Post Your First Request</button>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1179,11 +1005,6 @@ export default function App() {
       {view === 'chats' && (
         <div className="chat-layout" style={{ height: 'calc(100vh - 118px)' }}>
           <div className="chat-sidebar">
-            <div style={{ padding: '12px 14px', borderBottom: '1.5px solid var(--border)', display: 'flex', gap: 8 }}>
-              {['Enquiries', 'Support'].map(t => (
-                <button key={t} onClick={() => setChatTab(t)} className="btn btn-sm" style={{ background: chatTab === t ? 'var(--primary)' : '#fff', color: chatTab === t ? '#fff' : '#334155', border: '1.5px solid', borderColor: chatTab === t ? 'var(--primary)' : '#d4d9e0', flex: 1 }}>{t}</button>
-              ))}
-            </div>
             {providers.map(p => (
               <div key={p.id} className={`chat-contact ${activePartner?.id === p.id ? 'active' : ''}`} onClick={() => setActivePartner(p)}>
                 <div className="prov-av" style={{ background: p.avatar_color || '#0079ff', width: 40, height: 40, fontSize: '0.9rem' }}>
@@ -1193,16 +1014,11 @@ export default function App() {
                   <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{p.name}</div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>{p.specialty}</div>
                 </div>
-                <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', marginLeft: 'auto', marginBottom: 2 }} />
-                  <div style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>now</div>
-                </div>
               </div>
             ))}
           </div>
-
           <div className="chat-main" style={{ background: '#f9fafb' }}>
-            {activePartner ? (
+            {activePartner && (
               <>
                 <div style={{ padding: '12px 20px', background: '#fff', borderBottom: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div className="prov-av" style={{ background: activePartner.avatar_color || '#0079ff', width: 38, height: 38, fontSize: '0.9rem' }}>
@@ -1214,7 +1030,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="chat-msgs">
-                  <div className="msg-bubble msg-recv">Hello! I'm {activePartner.name}. How can I help you today?</div>
+                  <div className="msg-bubble msg-recv">Hello! I'm {activePartner.name}. How can I assist you?</div>
                   {chats.filter(c => c.partner_id === activePartner.id).map((c, i) => (
                     <div key={i} className={`msg-bubble ${c.sender === 'customer' ? 'msg-sent' : 'msg-recv'}`}>{c.message}</div>
                   ))}
@@ -1224,90 +1040,72 @@ export default function App() {
                   <button type="submit" className="btn btn-primary"><Send size={16} /></button>
                 </form>
               </>
-            ) : (
-              <div style={{ display: 'grid', placeItems: 'center', flex: 1, color: 'var(--muted)' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <MessageSquare size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <p>Select a provider to start chatting</p>
-                </div>
-              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* ===== PROFILE VIEW ===== */}
+      {/* ===== PROFILE & ADDRESSES VIEW ===== */}
       {view === 'profile' && (
         <div className="container section">
-          <div className="profile-header" style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+          <div className="profile-header" style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div className="profile-av">👤</div>
               <div>
                 <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>Rahul Sharma</h2>
-                <div style={{ opacity: 0.8, fontSize: '0.86rem' }}>rahul@example.com • Delhi NCR</div>
+                <div style={{ opacity: 0.85, fontSize: '0.86rem' }}>+91 98765 43210 • Delhi NCR</div>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, textAlign: 'center' }}>
-              {[
-                { n: bookings.length, l: 'Total Bookings' },
-                { n: loyaltyPoints, l: 'Loyalty Points' },
-                { n: bookmarks.length, l: 'Saved Services' },
-                { n: '4.9 ★', l: 'Avg Rating' }
-              ].map((s, i) => (
-                <div key={i} style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '10px 8px', backdropFilter: 'blur(4px)' }}>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{s.n}</div>
-                  <div style={{ fontSize: '0.72rem', opacity: 0.75 }}>{s.l}</div>
+          </div>
+
+          {/* Saved Addresses Section */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3>📍 Saved Addresses ({addresses.length})</h3>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAddAddressModal(true)}><Plus size={14} /> Add New Address</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+              {addresses.map(addr => (
+                <div key={addr.id} style={{ background: '#fff', border: `2px solid ${addr.isDefault ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ background: 'var(--primary-soft)', color: 'var(--primary)', fontWeight: 800, fontSize: '0.74rem', padding: '3px 8px', borderRadius: 6 }}>{addr.label}</span>
+                    {addr.isDefault && <span style={{ color: '#10b981', fontSize: '0.74rem', fontWeight: 700 }}>✓ Default</span>}
+                  </div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>{addr.text}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{addr.city}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            {[
-              { icon: '📋', title: 'My Bookings', desc: `${bookings.length} total bookings`, action: () => setView('bookings') },
-              { icon: '💬', title: 'My Chats', desc: `${providers.length} provider contacts`, action: () => setView('chats') },
-              { icon: '📝', title: 'Custom Requests', desc: `${requests.length} requests posted`, action: () => setView('requests') },
-              { icon: '❤️', title: 'Saved Services', desc: `${bookmarks.length} services bookmarked`, action: () => {} },
-              { icon: '🎁', title: 'Promo Codes', desc: `${promos.length} active promos`, action: () => setCartOpen(true) },
-              { icon: '🏅', title: 'Loyalty Points', desc: `${loyaltyPoints} pts — Redeem now!`, action: () => {} }
-            ].map((item, i) => (
-              <div key={i} className="provider-card" style={{ cursor: 'pointer' }} onClick={item.action}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <span style={{ fontSize: '1.6rem' }}>{item.icon}</span>
+          {/* Support Tickets Section */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3>🎫 Support Tickets ({tickets.length})</h3>
+              <button className="btn btn-outline btn-sm" onClick={() => setShowTicketModal(true)}><Plus size={14} /> New Ticket</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {tickets.map(tkt => (
+                <div key={tkt.id} style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <strong style={{ fontSize: '0.92rem' }}>{item.title}</strong>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{item.desc}</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{tkt.id}: {tkt.subject}</div>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{tkt.category} • {tkt.date}</div>
                   </div>
-                  <ChevronDown size={16} color="var(--muted)" style={{ marginLeft: 'auto', transform: 'rotate(-90deg)' }} />
+                  <span style={{ background: tkt.status === 'Resolved' ? '#d1fae5' : '#fef3c7', color: tkt.status === 'Resolved' ? '#047857' : '#b45309', padding: '3px 10px', borderRadius: 999, fontSize: '0.74rem', fontWeight: 700 }}>{tkt.status}</span>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Referral */}
-          <div style={{ marginTop: 20, background: 'linear-gradient(135deg, #0062d6, #0079ff)', borderRadius: 16, padding: 24, color: '#fff' }}>
-            <h3 style={{ marginBottom: 6 }}>Refer & Earn ₹200!</h3>
-            <p style={{ fontSize: '0.86rem', opacity: 0.85, marginBottom: 16 }}>Share your referral code with friends. Both of you get ₹200 credits when they book their first service.</p>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <div style={{ flex: 1, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '10px 16px', fontWeight: 800, letterSpacing: 2, fontSize: '0.96rem' }}>FIXO-RAHUL200</div>
-              <button className="btn btn-yellow" style={{ flexShrink: 0 }}>Copy Code</button>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== FOOTER ===== */}
+      {/* ===== FOOTER (NO PARTNER/ADMIN LINKS) ===== */}
       <footer className="footer">
         <div className="container">
           <div className="footer-grid">
             <div className="footer-brand">
               <strong>FixoHub</strong>
-              <p>India's trusted multi-vendor marketplace for Laptop, Mobile, TV, Tech Accessories, AC & all Home Services. 50,000+ bookings. 4.9 ★ rating.</p>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                {[['📘', 'Facebook'], ['🐦', 'Twitter'], ['📸', 'Instagram'], ['▶️', 'YouTube']].map(([icon, label]) => (
-                  <div key={label} className="social-btn" title={label}>{icon}</div>
-                ))}
-              </div>
+              <p>India's trusted home & tech service marketplace. 50,000+ bookings across top cities with guaranteed 365-day service warranty.</p>
             </div>
             <div>
               <h4>Services</h4>
@@ -1316,59 +1114,29 @@ export default function App() {
               ))}
             </div>
             <div>
-              <h4>Company</h4>
-              <a href="#">About FixoHub</a>
-              <a href="#">Partner Program</a>
-              <a href="#">Blog & Guides</a>
-              <a href="#">Careers</a>
-              <a href="#">Press Kit</a>
-              <a href="/admin/">Admin Login</a>
-              <a href="/partner/">Partner Login</a>
+              <h4>Customer Support</h4>
+              <a href="#" onClick={e => { e.preventDefault(); setView('wallet'); }}>FixoWallet</a>
+              <a href="#" onClick={e => { e.preventDefault(); setView('profile'); }}>Saved Addresses</a>
+              <a href="#" onClick={e => { e.preventDefault(); setShowTicketModal(true); }}>Raise Ticket</a>
+              <a href="#" onClick={e => { e.preventDefault(); setShowScratchModal(true); }}>Scratch Cards</a>
             </div>
             <div>
-              <h4>Stay Updated</h4>
-              <p style={{ fontSize: '0.82rem', marginBottom: 10, opacity: 0.65 }}>Get exclusive deals & service alerts</p>
-              <div className="footer-newsletter">
-                <input placeholder="Enter your email" value={newsletterEmail} onChange={e => setNewsletterEmail(e.target.value)} />
-                <button onClick={() => { if (newsletterEmail) alert('Subscribed! 🎉'); }}>Go</button>
-              </div>
-              <h4 style={{ marginTop: 20 }}>Download App</h4>
-              <a href="/HomeServePro.apk" download style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: '0.84rem' }}>
-                📱 Customer APK
-              </a>
-              <a href="/HomeServeProvider.apk" download style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: '0.84rem' }}>
-                🔧 Provider APK
+              <h4>Download Customer App</h4>
+              <a href="/HomeServePro.apk" download style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#1e293b', padding: '10px 16px', borderRadius: 10, color: '#fff', textDecoration: 'none', marginTop: 10 }}>
+                <Download size={18} /> Download Android APK (3.2 MB)
               </a>
             </div>
           </div>
           <div className="footer-bottom">
-            <span>© 2025 FixoHub. All rights reserved.</span>
+            <span>© 2026 FixoHub. All rights reserved.</span>
             <div style={{ display: 'flex', gap: 16 }}>
-              <a href="#" style={{ color: '#a3a3a3', fontSize: '0.78rem' }}>Privacy Policy</a>
-              <a href="#" style={{ color: '#a3a3a3', fontSize: '0.78rem' }}>Terms of Service</a>
-              <a href="#" style={{ color: '#a3a3a3', fontSize: '0.78rem' }}>Refund Policy</a>
+              <a href="#">Privacy Policy</a>
+              <a href="#">Terms of Service</a>
+              <a href="#">Refund Policy</a>
             </div>
           </div>
         </div>
       </footer>
-
-      {/* ===== MOBILE BOTTOM NAV ===== */}
-      <nav className="mobile-bottom-nav">
-        {[
-          { v: 'home', icon: <Home size={20} />, label: 'Home' },
-          { v: 'bookings', icon: <ClipboardList size={20} />, label: 'Bookings' },
-          { v: null, icon: <ShoppingBag size={20} />, label: 'Cart', action: () => { setBookingSuccess(null); setCartOpen(true); }, badge: cartCount },
-          { v: 'chats', icon: <MessageSquare size={20} />, label: 'Chat' },
-          { v: 'profile', icon: <User size={20} />, label: 'Profile' }
-        ].map((item, i) => (
-          <button key={i} onClick={() => item.action ? item.action() : setView(item.v)}
-            style={{ flex: 1, background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontSize: '0.65rem', fontWeight: 600, color: view === item.v ? 'var(--primary)' : 'var(--muted)', position: 'relative' }}>
-            {item.icon}
-            {item.label}
-            {item.badge > 0 && <span style={{ position: 'absolute', top: -2, right: 'calc(50% - 18px)', background: '#ef4444', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: '0.6rem', display: 'grid', placeItems: 'center', fontWeight: 800 }}>{item.badge}</span>}
-          </button>
-        ))}
-      </nav>
 
       {/* ===== CART DRAWER ===== */}
       {cartOpen && (
@@ -1383,12 +1151,8 @@ export default function App() {
                 <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                   <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
                   <h3 style={{ marginBottom: 8 }}>Booking Confirmed!</h3>
-                  <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginBottom: 16 }}>Booking #{bookingSuccess.id} created. Provider will be assigned shortly.</p>
-                  <BookingTracker status="pending" />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
-                    <button className="btn btn-outline" onClick={() => setInvoiceModal(bookingSuccess)}>Get Invoice</button>
-                    <button className="btn btn-primary" onClick={() => { setView('bookings'); setCartOpen(false); setBookingSuccess(null); }}>Track Booking</button>
-                  </div>
+                  <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginBottom: 16 }}>Booking #{bookingSuccess.id} created.</p>
+                  <button className="btn btn-primary" onClick={() => { setView('bookings'); setCartOpen(false); setBookingSuccess(null); }}>View Booking</button>
                 </div>
               ) : cart.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
@@ -1398,11 +1162,6 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-                    {['At Doorstep', 'At Store'].map(m => (
-                      <button key={m} onClick={() => setVisitMode(m)} className="btn btn-sm" style={{ background: visitMode === m ? 'var(--primary)' : '#fff', color: visitMode === m ? '#fff' : '#334155', border: '1.5px solid', borderColor: visitMode === m ? 'var(--primary)' : '#d4d9e0', flex: 1 }}>{m}</button>
-                    ))}
-                  </div>
                   {cart.map(item => (
                     <div key={item.id} className="cart-item">
                       <div>
@@ -1420,34 +1179,56 @@ export default function App() {
                     </div>
                   ))}
 
-                  {/* Promo */}
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: 6 }}>Promo Code</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input value={promoInput} onChange={e => setPromoInput(e.target.value.toUpperCase())} placeholder="FIXO50 / WELCOME20" style={{ flex: 1, border: '1.5px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: '0.86rem', outline: 'none' }} />
-                      <button className="btn btn-outline" onClick={applyPromo}>Apply</button>
+                  {/* 30-min Express Toggle */}
+                  <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.86rem', color: '#1e40af' }}>⚡ 30-Min Express Dispatch</strong>
+                      <div style={{ fontSize: '0.74rem', color: '#3b82f6' }}>Technician arrives within 30 minutes (+₹149)</div>
                     </div>
-                    {appliedPromo && <div style={{ color: '#10b981', fontSize: '0.8rem', marginTop: 4, fontWeight: 600 }}>✓ {appliedPromo.code} applied — Saving ₹{discountAmt}</div>}
-                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                      {promos.filter(p => p.is_active).map(p => (
-                        <button key={p.id} onClick={() => { setPromoInput(p.code); }} style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 7, padding: '3px 10px', fontSize: '0.74rem', fontWeight: 700, color: '#b45309' }}>{p.code}</button>
+                    <input type="checkbox" checked={isExpress} onChange={e => setIsExpress(e.target.checked)} style={{ width: 18, height: 18 }} />
+                  </div>
+
+                  {/* Tip Technician */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: 6 }}>Tip Your Technician</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[0, 50, 100, 200].map(tip => (
+                        <button key={tip} type="button" onClick={() => setTipAmount(tip)} className="btn btn-sm" style={{ flex: 1, background: tipAmount === tip ? 'var(--primary)' : '#fff', color: tipAmount === tip ? '#fff' : '#0d0d0d', border: '1.5px solid var(--border)' }}>
+                          {tip === 0 ? 'None' : `₹${tip}`}
+                        </button>
                       ))}
                     </div>
                   </div>
 
+                  {/* Promo Input */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: 6 }}>Promo Code</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input value={promoInput} onChange={e => setPromoInput(e.target.value.toUpperCase())} placeholder="FIXO50 / LUCKY30" style={{ flex: 1, border: '1.5px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: '0.86rem', outline: 'none' }} />
+                      <button className="btn btn-outline" onClick={applyPromo}>Apply</button>
+                    </div>
+                    {appliedPromo && <div style={{ color: '#10b981', fontSize: '0.8rem', marginTop: 4, fontWeight: 600 }}>✓ {appliedPromo.code} applied (-₹{discountAmt})</div>}
+                  </div>
+
+                  {/* Bill Breakdown */}
                   <div style={{ background: '#f7f9fc', borderRadius: 12, padding: '14px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', marginBottom: 6 }}><span>Subtotal</span><span>₹{subTotal}</span></div>
-                    {discountAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: '#10b981', marginBottom: 6 }}><span>Promo ({appliedPromo?.code})</span><span>-₹{discountAmt}</span></div>}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', marginBottom: 6 }}><span>GST 18%</span><span>₹{taxAmt}</span></div>
+                    {discountAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: '#10b981', marginBottom: 6 }}><span>Promo Discount</span><span>-₹{discountAmt}</span></div>}
+                    {isExpress && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: '#1e40af', marginBottom: 6 }}><span>Express Dispatch</span><span>+₹149</span></div>}
+                    {tipAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', marginBottom: 6 }}><span>Technician Tip</span><span>+₹{tipAmount}</span></div>}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1rem', borderTop: '1.5px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
-                      <span>Total</span><span>₹{cartTotal + taxAmt}</span>
+                      <span>Total Payable</span><span>₹{finalPayable}</span>
                     </div>
                   </div>
 
+                  {/* Checkout Form */}
                   <form onSubmit={handleCheckout} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div className="form-group"><label>Name</label><input required placeholder="Your name" value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} /></div>
-                    <div className="form-group"><label>Phone</label><input required placeholder="10-digit mobile" value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} /></div>
-                    <div className="form-group"><label>Address</label><input required placeholder="Door, Floor, Street, Area" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
+                    <div className="form-group">
+                      <label>Select Delivery Address</label>
+                      <select value={selectedAddressId} onChange={e => setSelectedAddressId(e.target.value)}>
+                        {addresses.map(a => <option key={a.id} value={a.id}>{a.label}: {a.text}</option>)}
+                      </select>
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <div className="form-group"><label>Date</label><input type="date" required value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} /></div>
                       <div className="form-group"><label>Slot</label>
@@ -1456,14 +1237,17 @@ export default function App() {
                         </select>
                       </div>
                     </div>
-                    <div className="form-group"><label>Payment</label>
+                    <div className="form-group">
+                      <label>Payment Method</label>
                       <select value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}>
-                        {['UPI / RazorPay', 'Credit / Debit Card', 'Net Banking', 'Paytm / PhonePe', 'Cash on Delivery'].map(p => <option key={p}>{p}</option>)}
+                        <option value="FixoWallet (Fast & 5% Cashback)">FixoWallet (Bal: ₹{walletBalance}) - 5% Cashback</option>
+                        <option value="UPI / QR / RazorPay">UPI / GPay / PhonePe</option>
+                        <option value="Credit / Debit Card">Credit / Debit Card</option>
+                        <option value="Cash on Delivery">Cash on Delivery</option>
                       </select>
                     </div>
-                    <div className="form-group"><label>Notes (optional)</label><textarea rows={2} placeholder="Specific instructions..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-                    <button type="submit" disabled={submitting} className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>
-                      {submitting ? 'Placing Booking...' : `Confirm Booking — ₹${cartTotal + taxAmt}`}
+                    <button type="submit" disabled={submitting} className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '0.94rem' }}>
+                      {submitting ? 'Placing Order...' : `Pay ₹${finalPayable} & Book`}
                     </button>
                   </form>
                 </>
@@ -1473,60 +1257,151 @@ export default function App() {
         </div>
       )}
 
-      {/* ===== MODALS ===== */}
-      {svcDetailModal && <SvcDetailModal srv={svcDetailModal} />}
-      {providerModal && <ProviderModal p={providerModal} />}
-      {invoiceModal && <InvoiceModal booking={invoiceModal} />}
-
-      {/* Rating Modal */}
-      {ratingModal && (
-        <div className="modal-bg" onClick={() => setRatingModal(null)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ padding: 28, maxWidth: 420 }}>
-            <h3 style={{ marginBottom: 6 }}>Rate Your Service</h3>
-            <p style={{ fontSize: '0.86rem', color: 'var(--muted)', marginBottom: 16 }}>{ratingModal.items?.map(i => i.name).join(', ')}</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16, justifyContent: 'center' }}>
-              {[1,2,3,4,5].map(n => (
-                <button key={n} onClick={() => setRatingVal(n)} style={{ background: 'none', border: 'none', fontSize: '2rem', cursor: 'pointer' }}>
-                  {n <= ratingVal ? '★' : '☆'}
-                </button>
+      {/* ===== SERVICE COMPARISON MODAL ===== */}
+      {showCompareModal && (
+        <div className="modal-bg" onClick={() => setShowCompareModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 750, padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3>Compare Services ({compareList.length})</h3>
+              <button onClick={() => setShowCompareModal(false)} style={{ background: 'none', border: 'none' }}><X size={20} /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${compareList.length}, 1fr)`, gap: 14 }}>
+              {compareList.map(s => (
+                <div key={s.id} style={{ background: '#f7f9fc', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <img src={s.image_url} alt={s.name} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10 }} />
+                  <strong style={{ fontSize: '0.94rem' }}>{s.name}</strong>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary)' }}>₹{s.price}</div>
+                  <div style={{ fontSize: '0.8rem' }}>⭐ {s.rating} ({s.reviews_count} reviews)</div>
+                  <div style={{ fontSize: '0.8rem' }}>⏱ {s.duration_mins} mins</div>
+                  <div style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 700 }}>🛡 {s.warranty_days} Days Warranty</div>
+                  <button className="btn btn-primary btn-sm" onClick={() => { addToCart(s); setShowCompareModal(false); }} style={{ marginTop: 'auto' }}>Add to Cart</button>
+                </div>
               ))}
-            </div>
-            <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Your Review</label>
-              <textarea rows={3} placeholder="Tell us about your experience..." value={ratingText} onChange={e => setRatingText(e.target.value)} style={{ border: '1.5px solid var(--border)', borderRadius: 10, padding: '10px 12px', fontSize: '0.88rem' }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button className="btn btn-outline" onClick={() => setRatingModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => { alert(`Thanks for your ${ratingVal}-star review! 🎉`); setRatingModal(null); }}>Submit Review</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Custom Request Modal */}
-      {reqModal && (
-        <div className="modal-bg" onClick={() => setReqModal(false)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <div className="modal-body">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                <h3>Post Custom Request</h3>
-                <button onClick={() => setReqModal(false)} style={{ background: 'none', border: 'none' }}><X size={20} /></button>
-              </div>
-              <form onSubmit={submitCustomRequest} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="form-group"><label>Service Title</label><input required placeholder="e.g. MacBook Pro screen replacement" value={reqForm.title} onChange={e => setReqForm(f => ({ ...f, title: e.target.value }))} /></div>
-                <div className="form-group"><label>Category</label>
-                  <select value={reqForm.category_name} onChange={e => setReqForm(f => ({ ...f, category_name: e.target.value }))}>
-                    {categories.map(c => <option key={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group"><label>Describe Your Problem</label><textarea required rows={3} placeholder="Describe the issue in detail..." value={reqForm.description} onChange={e => setReqForm(f => ({ ...f, description: e.target.value }))} /></div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group"><label>Min Budget (₹)</label><input type="number" value={reqForm.min_budget} onChange={e => setReqForm(f => ({ ...f, min_budget: +e.target.value }))} /></div>
-                  <div className="form-group"><label>Max Budget (₹)</label><input type="number" value={reqForm.max_budget} onChange={e => setReqForm(f => ({ ...f, max_budget: +e.target.value }))} /></div>
-                </div>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '11px' }}><FilePlus2 size={16} /> Submit Request</button>
-              </form>
+      {/* ===== ADD WALLET FUNDS MODAL ===== */}
+      {showAddWalletModal && (
+        <div className="modal-bg" onClick={() => setShowAddWalletModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 420, padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3>Recharge FixoWallet</h3>
+              <button onClick={() => setShowAddWalletModal(false)} style={{ background: 'none', border: 'none' }}><X size={20} /></button>
             </div>
+            <div style={{ background: '#ecfdf5', borderRadius: 12, padding: 14, color: '#047857', marginBottom: 16, fontSize: '0.86rem' }}>
+              🎁 <strong>5% Instant Cashback</strong> applied automatically on all top-ups!
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {[500, 1000, 2000, 5000].map(amt => (
+                <button key={amt} className="btn btn-sm" onClick={() => setAddWalletAmt(amt)} style={{ flex: 1, background: addWalletAmt === amt ? 'var(--primary)' : '#fff', color: addWalletAmt === amt ? '#fff' : '#0d0d0d', border: '1.5px solid var(--border)' }}>
+                  ₹{amt}
+                </button>
+              ))}
+            </div>
+            <input type="number" value={addWalletAmt} onChange={e => setAddWalletAmt(+e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '1rem', fontWeight: 700, marginBottom: 16 }} />
+            <button className="btn btn-primary" onClick={addFundsToWallet} style={{ width: '100%', padding: 12 }}>Pay via UPI & Add to Wallet</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== LUCKY SCRATCH CARD MODAL ===== */}
+      {showScratchModal && (
+        <div className="modal-bg" onClick={() => setShowScratchModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 380, padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🎁</div>
+            <h3 style={{ marginBottom: 6 }}>Daily Scratch & Win</h3>
+            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', marginBottom: 18 }}>Scratch to reveal your exclusive secret discount code!</p>
+            <div
+              onClick={() => setScratchClaimed(true)}
+              style={{ background: scratchClaimed ? '#fef3c7' : 'linear-gradient(135deg, #0079ff, #60a5fa)', borderRadius: 14, padding: 28, cursor: 'pointer', border: '2px dashed #f59e0b', color: scratchClaimed ? '#b45309' : '#fff' }}
+            >
+              {scratchClaimed ? (
+                <>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>CODE: LUCKY30</div>
+                  <div style={{ fontSize: '0.84rem', marginTop: 4 }}>Flat 30% OFF on all services!</div>
+                </>
+              ) : (
+                <div style={{ fontWeight: 700, fontSize: '1rem' }}>👉 TAP TO SCRATCH 👈</div>
+              )}
+            </div>
+            {scratchClaimed && (
+              <button className="btn btn-primary btn-sm" onClick={() => { setPromoInput('LUCKY30'); setShowScratchModal(false); setCartOpen(true); }} style={{ marginTop: 16 }}>
+                Apply to Cart
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== SUPPORT TICKET MODAL ===== */}
+      {showTicketModal && (
+        <div className="modal-bg" onClick={() => setShowTicketModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3>Raise Support Ticket</h3>
+              <button onClick={() => setShowTicketModal(false)} style={{ background: 'none', border: 'none' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={createTicket} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="form-group"><label>Category</label>
+                <select value={ticketForm.category} onChange={e => setTicketForm(f => ({ ...f, category: e.target.value }))}>
+                  {['Service Quality', 'Billing & Refunds', 'Rescheduling', 'Damage Claim', 'Other'].map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Subject</label><input required placeholder="Brief summary of issue" value={ticketForm.subject} onChange={e => setTicketForm(f => ({ ...f, subject: e.target.value }))} /></div>
+              <div className="form-group"><label>Detailed Description</label><textarea required rows={3} placeholder="Please provide details..." value={ticketForm.desc} onChange={e => setTicketForm(f => ({ ...f, desc: e.target.value }))} /></div>
+              <button type="submit" className="btn btn-primary" style={{ padding: 11 }}>Submit Ticket</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== SERVICE DETAIL MODAL ===== */}
+      {svcDetailModal && (
+        <div className="modal-bg" onClick={() => setSvcDetailModal(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+            <div style={{ position: 'relative' }}>
+              <img src={svcDetailModal.image_url} alt={svcDetailModal.name} style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+              <button onClick={() => setSvcDetailModal(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'grid', placeItems: 'center' }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: 22 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{svcDetailModal.name}</h2>
+                <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)' }}>₹{svcDetailModal.price}</span>
+              </div>
+              <p style={{ fontSize: '0.86rem', color: '#475569', marginBottom: 14 }}>{svcDetailModal.description}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, background: '#f7f9fc', borderRadius: 12, padding: 12, textAlign: 'center', marginBottom: 16 }}>
+                <div><strong>⭐ {svcDetailModal.rating}</strong><div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Rating</div></div>
+                <div><strong>⏱ {svcDetailModal.duration_mins}m</strong><div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Duration</div></div>
+                <div><strong>🛡 {svcDetailModal.warranty_days}d</strong><div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Warranty</div></div>
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', padding: 12 }} onClick={() => { addToCart(svcDetailModal); setSvcDetailModal(null); }}>Add to Cart (₹{svcDetailModal.price})</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Modal */}
+      {invoiceModal && (
+        <div className="modal-bg" onClick={() => setInvoiceModal(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ padding: 24, maxWidth: 440 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <strong>FixoHub Tax Invoice</strong>
+              <button onClick={() => setInvoiceModal(null)} style={{ background: 'none', border: 'none' }}><X size={18} /></button>
+            </div>
+            <div style={{ fontSize: '0.86rem', color: 'var(--muted)', marginBottom: 12 }}>Booking ID: #{invoiceModal.id}</div>
+            {(invoiceModal.items || []).map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.86rem' }}>
+                <span>{item.name} × {item.qty}</span>
+                <strong>₹{item.price * item.qty}</strong>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontWeight: 800 }}>
+              <span>Total Paid</span>
+              <span>₹{invoiceModal.total_amount}</span>
+            </div>
+            <button className="btn btn-outline" onClick={() => window.print()} style={{ width: '100%', marginTop: 16 }}>Print Receipt</button>
           </div>
         </div>
       )}
