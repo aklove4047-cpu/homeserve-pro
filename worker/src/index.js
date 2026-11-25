@@ -192,11 +192,6 @@ export default {
         return json({ totalBookings, pendingBookings, completedBookings, activeServices, totalTechnicians, availableTechnicians, totalRevenue });
       }
 
-      // Admin route fallback
-      if (path === '/admin' || path === '/admin/') {
-        return env.ASSETS.fetch(new Request(new URL('/admin/index.html', request.url), request));
-      }
-
       return env.ASSETS.fetch(request);
     } catch (err) {
       return json({ error: err.message || 'Internal error' }, 500);
