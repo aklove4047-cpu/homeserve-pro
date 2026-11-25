@@ -560,9 +560,56 @@ input, select, textarea { font-family: inherit; }
 .status-completed { background: #d1fae5; color: #047857; }
 .status-cancelled { background: #fee2e2; color: #b91c1c; }
 
+body.dark {
+  --bg: #0b1120;
+  --surface: #111827;
+  --pill-bg: #1e293b;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --border: #1f2937;
+  --primary-soft: #172554;
+}
+
+body.dark .header-wrap,
+body.dark .cat-card,
+body.dark .stat-card,
+body.dark .provider-card,
+body.dark .srv-card,
+body.dark .step-card,
+body.dark .testi-card,
+body.dark .faq-item,
+body.dark .drawer,
+body.dark .modal-card,
+body.dark .btn-outline,
+body.dark .btn-outline-dark {
+  background: #111827;
+  color: #f8fafc;
+  border-color: #1f2937;
+}
+
+body.dark .sub-link { color: #cbd5e1; }
+body.dark .include-chip { background: #1e293b; color: #cbd5e1; }
+
+.mobile-bottom-nav {
+  display: none;
+}
+
 @media (max-width: 960px) {
   .hero-banner, .testi-grid, .faq-grid, .footer-grid { grid-template-columns: 1fr; }
   .cat-grid { grid-template-columns: repeat(2, 1fr); }
   .steps-grid, .stats-grid, .testi-cards { grid-template-columns: 1fr; }
   .pill-search { display: none; }
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 6px 4px;
+    justify-content: space-around;
+  }
+  body { padding-bottom: 62px; }
 }

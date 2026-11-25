@@ -208,6 +208,86 @@ export default {
         return json({ totalBookings, pendingBookings, completedBookings, activeServices, totalTechnicians, availableTechnicians, totalRevenue });
       }
 
+      // Custom Service Requests & Bids
+      if (path === '/api/requests' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM custom_requests ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/requests' && method === 'POST') {
+        const { customer_name = 'Guest User', title, category_name = 'General', description = '', min_budget = 200, max_budget = 1000 } = await request.json();
+        if (!title) return json({ error: 'title is required' }, 400);
+        const id = `req-${crypto.randomUUID().slice(0, 8)}`;
+        const created_at = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO custom_requests (id, customer_name, title, category_name, description, min_budget, max_budget, status, bids_count, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'Requested', 0, ?)
+        `).bind(id, customer_name, title, category_name, description, Number(min_budget), Number(max_budget), created_at).run();
+        return json(await env.DB.prepare('SELECT * FROM custom_requests WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/requests/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const existing = await env.DB.prepare('SELECT * FROM custom_requests WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'Request not found' }, 404);
+        const body = await request.json();
+        const status = body.status ?? existing.status;
+        const bid_provider = body.bid_provider ?? existing.bid_provider;
+        const bid_amount = body.bid_amount !== undefined ? Number(body.bid_amount) : existing.bid_amount;
+        const bids_count = body.bid_provider ? existing.bids_count + 1 : existing.bids_count;
+        await env.DB.prepare('UPDATE custom_requests SET status = ?, bid_provider = ?, bid_amount = ?, bids_count = ? WHERE id = ?')
+          .bind(status, bid_provider, bid_amount, bids_count, id).run();
+        return json(await env.DB.prepare('SELECT * FROM custom_requests WHERE id = ?').bind(id).first());
+      }
+
+      // Promo Codes
+      if (path === '/api/promocodes' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM promocodes ORDER BY discount_percent DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/promocodes' && method === 'POST') {
+        const { code, discount_percent, min_order = 299, max_discount = 500, valid_until = '2026-12-31' } = await request.json();
+        if (!code || !discount_percent) return json({ error: 'code and discount_percent required' }, 400);
+        const id = `prm-${crypto.randomUUID().slice(0, 8)}`;
+        await env.DB.prepare('INSERT INTO promocodes (id, code, discount_percent, min_order, max_discount, valid_until, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)')
+          .bind(id, String(code).toUpperCase(), Number(discount_percent), Number(min_order), Number(max_discount), valid_until).run();
+        return json(await env.DB.prepare('SELECT * FROM promocodes WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/promocodes/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM promocodes WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // Chat Messages
+      if (path === '/api/chats' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM chat_messages ORDER BY created_at ASC').all();
+        return json(results);
+      }
+
+      if (path === '/api/chats' && method === 'POST') {
+        const { partner_id = 'tech-1', partner_name = 'Provider', sender = 'customer', message, booking_code = null } = await request.json();
+        if (!message) return json({ error: 'message required' }, 400);
+        const id = `msg-${crypto.randomUUID().slice(0, 8)}`;
+        const created_at = new Date().toISOString();
+        await env.DB.prepare('INSERT INTO chat_messages (id, partner_id, partner_name, sender, message, booking_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .bind(id, partner_id, partner_name, sender, message, booking_code, created_at).run();
+        return json(await env.DB.prepare('SELECT * FROM chat_messages WHERE id = ?').bind(id).first(), 201);
+      }
+
+      // Transactions & Blogs
+      if (path === '/api/transactions' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM transactions ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/blogs' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM blogs ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
       return env.ASSETS.fetch(request);
     } catch (err) {
       return json({ error: err.message || 'Internal error' }, 500);
