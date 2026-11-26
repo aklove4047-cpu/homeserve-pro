@@ -199,50 +199,47 @@ export default function App() {
   // Customer Profile & Authentication State
   const [customer, setCustomer] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('fh_customer') || 'null') || {
-        name: 'Rahul Sharma',
-        phone: '+91 98765 43210',
-        email: 'rahul.sharma@gmail.com',
-        address: 'Flat 402, Tower B, Green Park Residency',
-        landmark: 'Near City Mall',
-        pincode: '110016',
-        alternate_phone: '+91 98111 22334',
-        address_type: 'Home',
-        city: 'Delhi NCR',
-        active_subscription: null
-      };
+      const saved = localStorage.getItem('fh_customer');
+      return saved ? JSON.parse(saved) : null;
     } catch {
-      return {
-        name: 'Rahul Sharma',
-        phone: '+91 98765 43210',
-        email: 'rahul.sharma@gmail.com',
-        address: 'Flat 402, Tower B, Green Park Residency',
-        landmark: 'Near City Mall',
-        pincode: '110016',
-        alternate_phone: '',
-        address_type: 'Home',
-        city: 'Delhi NCR',
-        active_subscription: null
-      };
+      return null;
     }
   });
 
-  const [showRegModal, setShowRegModal] = useState(false);
-  const [regForm, setRegForm] = useState(customer);
+  // Auth Modal State: 'login' | 'register'
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [loginPhone, setLoginPhone] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+
+  const [regForm, setRegForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    landmark: '',
+    pincode: '110016',
+    alternate_phone: '',
+    address_type: 'Home',
+    city: 'Delhi NCR'
+  });
+
   const [amcPlans, setAmcPlans] = useState([]);
   const [amcSuccessModal, setAmcSuccessModal] = useState(null);
 
   const [reqForm, setReqForm] = useState({
-    customer_name: customer.name || 'Rahul Sharma', title: '', category_name: 'Laptop & PC', description: '', min_budget: 500, max_budget: 2500
+    customer_name: customer?.name || '', title: '', category_name: 'Laptop & PC', description: '', min_budget: 500, max_budget: 2500
   });
 
   const [form, setForm] = useState({
-    customer_name: customer.name || 'Rahul Sharma',
-    customer_phone: customer.phone || '+91 98765 43210',
-    alternate_phone: customer.alternate_phone || '',
-    address: customer.address || 'Flat 402, Green Park Residency',
-    landmark: customer.landmark || 'Near City Mall',
-    pincode: customer.pincode || '110016',
+    customer_name: customer?.name || '',
+    customer_phone: customer?.phone || '',
+    alternate_phone: customer?.alternate_phone || '',
+    address: customer?.address || '',
+    landmark: customer?.landmark || '',
+    pincode: customer?.pincode || '110016',
     scheduled_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
     scheduled_slot: TIME_SLOTS[1],
     payment_method: 'FixoWallet (Fast & 5% Cashback)',
@@ -360,9 +357,84 @@ export default function App() {
     alert(`₹${amt + bonus} successfully added to FixoWallet!`);
   };
 
+  // Customer Login Handler
+  const handleLogin = async (e) => {
+    e?.preventDefault();
+    setAuthError('');
+    setAuthSuccess('');
+    if (!loginPhone.trim()) {
+      setAuthError('Please enter your mobile phone number.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`${API}/api/customers/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: loginPhone.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.customer) {
+        const cust = data.customer;
+        setCustomer(cust);
+        localStorage.setItem('fh_customer', JSON.stringify(cust));
+        if (cust.wallet_balance !== undefined) {
+          setWalletBalance(cust.wallet_balance);
+          localStorage.setItem('fh_wallet', cust.wallet_balance);
+        }
+        setForm(f => ({
+          ...f,
+          customer_name: cust.name,
+          customer_phone: cust.phone,
+          alternate_phone: cust.alternate_phone || '',
+          address: cust.address || f.address,
+          landmark: cust.landmark || '',
+          pincode: cust.pincode || '110016'
+        }));
+        setAuthSuccess(`Welcome back, ${cust.name}! Logged in successfully.`);
+        setTimeout(() => {
+          setShowAuthModal(false);
+          setAuthSuccess('');
+        }, 1200);
+      } else {
+        setAuthError(data.error || 'Account not found. Please click Register to create your account.');
+      }
+    } catch {
+      setAuthError('Error connecting to server. Please check your connection.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Customer Logout Handler
+  const handleLogout = () => {
+    if (!confirm('Are you sure you want to log out of your FixoHub account?')) return;
+    localStorage.removeItem('fh_customer');
+    setCustomer(null);
+    setForm(f => ({
+      ...f,
+      customer_name: '',
+      customer_phone: '',
+      alternate_phone: '',
+      address: '',
+      landmark: '',
+      pincode: '110016'
+    }));
+    alert('Logged out successfully.');
+  };
+
   // Customer Registration & Profile Handler
   const handleRegisterCustomer = async (e) => {
     e?.preventDefault();
+    setAuthError('');
+    setAuthSuccess('');
+    if (!regForm.name || !regForm.phone) {
+      setAuthError('Full Name and Mobile Phone are required.');
+      return;
+    }
+
+    setAuthLoading(true);
     try {
       const res = await fetch(`${API}/api/customers/register`, {
         method: 'POST',
@@ -370,38 +442,45 @@ export default function App() {
         body: JSON.stringify(regForm)
       });
       const data = await res.json();
-      if (data.success && data.customer) {
-        setCustomer(data.customer);
-        localStorage.setItem('fh_customer', JSON.stringify(data.customer));
-        setForm(f => ({
-          ...f,
-          customer_name: data.customer.name,
-          customer_phone: data.customer.phone,
-          alternate_phone: data.customer.alternate_phone || '',
-          address: data.customer.address || f.address,
-          landmark: data.customer.landmark || '',
-          pincode: data.customer.pincode || ''
-        }));
+      const cust = data.customer || data;
+      if (res.ok && cust?.name) {
+        setCustomer(cust);
+        localStorage.setItem('fh_customer', JSON.stringify(cust));
         if (data.bonus) {
           const newBal = (Number(walletBalance) || 0) + Number(data.bonus);
           setWalletBalance(newBal);
           localStorage.setItem('fh_wallet', newBal);
         }
-        setShowRegModal(false);
-        alert(`Welcome ${data.customer.name}! Customer details saved. ₹${data.bonus || 100} Welcome Bonus added to your FixoWallet!`);
+        setForm(f => ({
+          ...f,
+          customer_name: cust.name,
+          customer_phone: cust.phone,
+          alternate_phone: cust.alternate_phone || '',
+          address: cust.address || f.address,
+          landmark: cust.landmark || '',
+          pincode: cust.pincode || ''
+        }));
+        setAuthSuccess(`Welcome, ${cust.name}! Profile registered & ₹${data.bonus || 100} Welcome Bonus added to your FixoWallet!`);
+        setTimeout(() => {
+          setShowAuthModal(false);
+          setAuthSuccess('');
+        }, 1500);
       } else {
-        alert(data.error || 'Failed to save customer details');
+        setAuthError(data.error || 'Failed to save customer details.');
       }
     } catch {
-      alert('Error communicating with server');
+      setAuthError('Error communicating with server.');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
   // Subscribe to Annual Maintenance Contract
   const subscribeAmcPlan = async (plan) => {
     if (!customer?.phone || !customer?.name) {
-      alert('Please fill your customer profile & doorstep address first.');
-      setShowRegModal(true);
+      alert('Please Log In or Register first to subscribe to FixoCare AMC.');
+      setAuthMode('register');
+      setShowAuthModal(true);
       return;
     }
 
@@ -675,18 +754,48 @@ export default function App() {
                 <button key={v} className={`sub-link ${view === v ? 'active' : ''}`} onClick={() => setView(v)}>{label}</button>
               ))}
             </nav>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <button
-                className="btn btn-outline"
-                style={{ padding: '7px 12px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6, borderColor: '#e2e8f0', background: '#f8fafc' }}
-                onClick={() => { setRegForm(customer); setShowRegModal(true); }}
-              >
-                <span>👤</span>
-                <span style={{ fontWeight: 700 }}>{customer?.name ? customer.name.split(' ')[0] : 'Register'}</span>
-                {customer?.active_subscription && (
-                  <span style={{ background: '#7e22ce', color: '#fff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>AMC</span>
-                )}
-              </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {customer ? (
+                <>
+                  <button
+                    className="btn btn-outline"
+                    style={{ padding: '6px 12px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6, borderColor: '#cbd5e1', background: '#f8fafc' }}
+                    onClick={() => setView('profile')}
+                    title="View Saved Profile & Addresses"
+                  >
+                    <span>👤</span>
+                    <span style={{ fontWeight: 700 }}>{customer.name?.split(' ')[0] || 'User'}</span>
+                    {customer.active_subscription && (
+                      <span style={{ background: '#7e22ce', color: '#fff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>AMC</span>
+                    )}
+                  </button>
+                  <button
+                    className="btn btn-outline"
+                    style={{ padding: '6px 10px', fontSize: '0.78rem', color: '#dc2626', borderColor: '#fecaca', background: '#fef2f2', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                    onClick={handleLogout}
+                    title="Log Out of your FixoHub account"
+                  >
+                    <span>🚪</span> Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="btn btn-outline"
+                    style={{ padding: '6px 12px', fontSize: '0.82rem', fontWeight: 700, borderColor: '#cbd5e1', background: '#fff' }}
+                    onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); setShowAuthModal(true); }}
+                  >
+                    🔑 Log In
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    style={{ padding: '6px 14px', fontSize: '0.82rem', fontWeight: 800 }}
+                    onClick={() => { setAuthMode('register'); setAuthError(''); setAuthSuccess(''); setShowAuthModal(true); }}
+                  >
+                    ✨ Register (+₹100)
+                  </button>
+                </>
+              )}
               <button className="btn btn-outline-dark" style={{ padding: '7px 14px' }} onClick={() => { setBookingSuccess(null); setCartOpen(true); }}>
                 <ShoppingBag size={15} /> Cart {cartCount > 0 && <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-grid', placeItems: 'center', fontSize: '0.7rem', fontWeight: 800 }}>{cartCount}</span>}
               </button>
@@ -1451,97 +1560,145 @@ export default function App() {
       {/* ===== PROFILE & ADDRESSES VIEW ===== */}
       {view === 'profile' && (
         <div className="container section">
-          {/* Customer Profile Banner */}
-          <div style={{
-            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-            borderRadius: 22,
-            padding: '28px 30px',
-            color: '#fff',
-            marginBottom: 24,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          {!customer ? (
+            <div style={{
+              background: '#fff',
+              borderRadius: 24,
+              border: '1.5px solid var(--border)',
+              padding: '48px 32px',
+              textAlign: 'center',
+              maxWidth: 540,
+              margin: '30px auto',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.05)'
+            }}>
+              <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>👤</div>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 900, marginBottom: 8, color: '#0f172a' }}>
+                Customer Account Access
+              </h2>
+              <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: 24 }}>
+                Log in to access your saved doorstep addresses, track live service orders, manage your FixoWallet balance, and view VIP AMC benefits.
+              </p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: '12px 24px', fontWeight: 800 }}
+                  onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); setShowAuthModal(true); }}
+                >
+                  🔑 Log In with Mobile
+                </button>
+                <button
+                  className="btn btn-outline"
+                  style={{ padding: '12px 20px', fontWeight: 800 }}
+                  onClick={() => { setAuthMode('register'); setAuthError(''); setAuthSuccess(''); setShowAuthModal(true); }}
+                >
+                  ✨ Register (+₹100 Bonus)
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Customer Profile Banner */}
               <div style={{
-                width: 60,
-                height: 60,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #0079ff, #6366f1)',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: '1.5rem',
-                fontWeight: 800,
-                color: '#fff'
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                borderRadius: 22,
+                padding: '28px 30px',
+                color: '#fff',
+                marginBottom: 24,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 16
               }}>
-                {customer?.name ? customer.name[0] : '👤'}
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{customer?.name || 'Registered Customer'}</h2>
-                  {customer?.address_type && (
-                    <span style={{ background: 'rgba(255,255,255,0.15)', fontSize: '0.72rem', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
-                      {customer.address_type}
-                    </span>
-                  )}
-                  {customer?.active_subscription && (
-                    <span style={{ background: '#7c3aed', color: '#fff', fontSize: '0.72rem', padding: '3px 9px', borderRadius: 999, fontWeight: 800 }}>
-                      👑 VIP AMC
-                    </span>
-                  )}
-                </div>
-                <div style={{ opacity: 0.85, fontSize: '0.86rem', marginTop: 3 }}>
-                  📞 {customer?.phone} {customer?.alternate_phone ? `• Alt: ${customer.alternate_phone}` : ''}
-                </div>
-                {customer?.email && (
-                  <div style={{ opacity: 0.75, fontSize: '0.82rem', marginTop: 2 }}>
-                    ✉️ {customer.email}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                  <div style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #0079ff, #6366f1)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: '1.5rem',
+                    fontWeight: 800,
+                    color: '#fff'
+                  }}>
+                    {customer?.name ? customer.name[0] : '👤'}
                   </div>
-                )}
-              </div>
-            </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{customer?.name || 'Registered Customer'}</h2>
+                      {customer?.address_type && (
+                        <span style={{ background: 'rgba(255,255,255,0.15)', fontSize: '0.72rem', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                          {customer.address_type}
+                        </span>
+                      )}
+                      {customer?.active_subscription && (
+                        <span style={{ background: '#7c3aed', color: '#fff', fontSize: '0.72rem', padding: '3px 9px', borderRadius: 999, fontWeight: 800 }}>
+                          👑 VIP AMC
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ opacity: 0.85, fontSize: '0.86rem', marginTop: 3 }}>
+                      📞 {customer?.phone} {customer?.alternate_phone ? `• Alt: ${customer.alternate_phone}` : ''}
+                    </div>
+                    {customer?.email && (
+                      <div style={{ opacity: 0.75, fontSize: '0.82rem', marginTop: 2 }}>
+                        ✉️ {customer.email}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-            <button
-              className="btn btn-primary"
-              onClick={() => { setRegForm(customer); setShowRegModal(true); }}
-              style={{ padding: '10px 18px', fontSize: '0.88rem' }}
-            >
-              ✏️ Edit Customer Profile &amp; Address
-            </button>
-          </div>
-
-          {/* Doorstep Address & KYC Details Card */}
-          <div style={{
-            background: '#fff',
-            border: '1.5px solid var(--border)',
-            borderRadius: 18,
-            padding: 22,
-            marginBottom: 24
-          }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: 12 }}>🏠 Doorstep Delivery Address on Record</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, fontSize: '0.86rem' }}>
-              <div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Full Address</div>
-                <div style={{ fontWeight: 600, marginTop: 2 }}>{customer?.address || 'Not filled'}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Landmark</div>
-                <div style={{ fontWeight: 600, marginTop: 2 }}>📍 {customer?.landmark || 'Not provided'}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Area Pin Code</div>
-                <div style={{ fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>📮 {customer?.pincode || '110016'}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active AMC Plan</div>
-                <div style={{ fontWeight: 700, marginTop: 2, color: customer?.active_subscription ? '#7c3aed' : 'var(--muted)' }}>
-                  {customer?.active_subscription ? `👑 ${customer.active_subscription}` : 'None (Pay-as-you-go)'}
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => { setRegForm(customer); setAuthMode('register'); setShowAuthModal(true); }}
+                    style={{ padding: '10px 16px', fontSize: '0.86rem' }}
+                  >
+                    ✏️ Edit Profile
+                  </button>
+                  <button
+                    className="btn btn-outline"
+                    onClick={handleLogout}
+                    style={{ padding: '10px 14px', fontSize: '0.86rem', background: '#dc2626', color: '#fff', borderColor: '#dc2626', fontWeight: 700 }}
+                  >
+                    🚪 Log Out
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>
+
+              {/* Doorstep Address & KYC Details Card */}
+              <div style={{
+                background: '#fff',
+                border: '1.5px solid var(--border)',
+                borderRadius: 18,
+                padding: 22,
+                marginBottom: 24
+              }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: 12 }}>🏠 Doorstep Delivery Address on Record</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, fontSize: '0.86rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Full Address</div>
+                    <div style={{ fontWeight: 600, marginTop: 2 }}>{customer?.address || 'Not filled'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Landmark</div>
+                    <div style={{ fontWeight: 600, marginTop: 2 }}>📍 {customer?.landmark || 'Not provided'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Area Pin Code</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>📮 {customer?.pincode || '110016'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active AMC Plan</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, color: customer?.active_subscription ? '#7c3aed' : 'var(--muted)' }}>
+                      {customer?.active_subscription ? `👑 ${customer.active_subscription}` : 'None (Pay-as-you-go)'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Saved Addresses Section */}
           <div style={{ marginBottom: 28 }}>
@@ -1964,144 +2121,237 @@ export default function App() {
         </div>
       )}
 
-      {/* ===== CUSTOMER REGISTRATION / PROFILE MODAL ===== */}
-      {showRegModal && (
-        <div className="modal-bg" onClick={() => setShowRegModal(false)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, padding: 24, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '1px solid var(--border)', pb: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: '#eff6ff', color: '#1d4ed8', display: 'grid', placeItems: 'center', fontSize: '1.2rem' }}>
-                  👤
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Customer Details &amp; Registration</h3>
-                  <div style={{ fontSize: '0.76rem', color: '#059669', fontWeight: 700 }}>
-                    🎁 Complete registration &amp; get ₹100 Welcome Bonus!
-                  </div>
-                </div>
+      {/* ===== UNIFIED CUSTOMER AUTH MODAL (LOGIN & REGISTER) ===== */}
+      {showAuthModal && (
+        <div className="modal-bg" onClick={() => setShowAuthModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, padding: 24, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 6, background: '#f1f5f9', padding: 4, borderRadius: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 9,
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    background: authMode === 'login' ? '#fff' : 'transparent',
+                    color: authMode === 'login' ? '#0f172a' : '#64748b',
+                    boxShadow: authMode === 'login' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none'
+                  }}
+                >
+                  🔑 Log In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('register'); setAuthError(''); setAuthSuccess(''); }}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 9,
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    background: authMode === 'register' ? 'var(--primary)' : 'transparent',
+                    color: authMode === 'register' ? '#fff' : '#64748b',
+                    boxShadow: authMode === 'register' ? '0 2px 8px rgba(0,121,255,0.3)' : 'none'
+                  }}
+                >
+                  ✨ Register (+₹100)
+                </button>
               </div>
-              <button onClick={() => setShowRegModal(false)} style={{ background: 'none', border: 'none' }}><X size={18} /></button>
+              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} /></button>
             </div>
 
-            <form onSubmit={handleRegisterCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="form-group">
-                <label>Customer Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rahul Sharma"
-                  value={regForm.name || ''}
-                  onChange={e => setRegForm(f => ({ ...f, name: e.target.value }))}
-                />
+            {authError && (
+              <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', color: '#b91c1c', padding: '10px 14px', borderRadius: 12, fontSize: '0.82rem', marginBottom: 14 }}>
+                ⚠️ {authError}
               </div>
+            )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {authSuccess && (
+              <div style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', color: '#047857', padding: '10px 14px', borderRadius: 12, fontSize: '0.82rem', marginBottom: 14, fontWeight: 700 }}>
+                ✓ {authSuccess}
+              </div>
+            )}
+
+            {authMode === 'login' ? (
+              /* LOGIN FORM */
+              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 4 }}>Log In to FixoHub</h3>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
+                    Enter your registered 10-digit mobile number to access your saved addresses &amp; bookings
+                  </p>
+                </div>
+
                 <div className="form-group">
-                  <label>Primary Mobile *</label>
+                  <label>Mobile Phone Number *</label>
                   <input
                     type="tel"
                     required
                     placeholder="+91 98765 43210"
-                    value={regForm.phone || ''}
-                    onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))}
+                    value={loginPhone}
+                    onChange={e => setLoginPhone(e.target.value)}
+                    style={{ fontSize: '1rem', fontWeight: 600, letterSpacing: '0.5px' }}
+                    autoFocus
                   />
+                  <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 4 }}>
+                    💡 Tip: Try with <strong>+919812345678</strong> or <strong>+919876543210</strong>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>Alternate Mobile</label>
-                  <input
-                    type="tel"
-                    placeholder="+91 98111 22334"
-                    value={regForm.alternate_phone || ''}
-                    onChange={e => setRegForm(f => ({ ...f, alternate_phone: e.target.value }))}
-                  />
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '13px', fontSize: '0.94rem', fontWeight: 800, marginTop: 4 }}
+                >
+                  {authLoading ? 'Logging In...' : 'Log In Now →'}
+                </button>
+
+                <div style={{ textAlign: 'center', fontSize: '0.82rem', color: '#64748b', marginTop: 8 }}>
+                  Don't have an account yet?{' '}
+                  <span
+                    onClick={() => { setAuthMode('register'); setAuthError(''); }}
+                    style={{ color: 'var(--primary)', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Register here &amp; get ₹100 Welcome Bonus!
+                  </span>
                 </div>
-              </div>
-
-              <div className="form-group">
-                <label>Gmail / Email ID *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="customer@gmail.com"
-                  value={regForm.email || ''}
-                  onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Complete Doorstep Address (Flat/House No, Building, Street) *</label>
-                <textarea
-                  rows={2}
-                  required
-                  placeholder="Flat 402, Tower B, Green Park Residency, Sector 15"
-                  value={regForm.address || ''}
-                  onChange={e => setRegForm(f => ({ ...f, address: e.target.value }))}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div className="form-group">
-                  <label>Nearby Landmark</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Near City Mall"
-                    value={regForm.landmark || ''}
-                    onChange={e => setRegForm(f => ({ ...f, landmark: e.target.value }))}
-                  />
+              </form>
+            ) : (
+              /* REGISTER FORM */
+              <form onSubmit={handleRegisterCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 4 }}>Customer Registration</h3>
+                  <p style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 700 }}>
+                    🎁 Fill your doorstep details &amp; get ₹100 instantly in your FixoWallet!
+                  </p>
                 </div>
+
                 <div className="form-group">
-                  <label>Area Pin Code (6 Digits) *</label>
+                  <label>Full Name *</label>
                   <input
                     type="text"
                     required
-                    maxLength={6}
-                    placeholder="e.g. 110016"
-                    value={regForm.pincode || ''}
-                    onChange={e => setRegForm(f => ({ ...f, pincode: e.target.value }))}
+                    placeholder="e.g. Rahul Sharma"
+                    value={regForm.name || ''}
+                    onChange={e => setRegForm(f => ({ ...f, name: e.target.value }))}
                   />
                 </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div className="form-group">
-                  <label>Address Type</label>
-                  <select
-                    value={regForm.address_type || 'Home'}
-                    onChange={e => setRegForm(f => ({ ...f, address_type: e.target.value }))}
-                  >
-                    <option value="Home">Home</option>
-                    <option value="Work">Office / Work</option>
-                    <option value="Other">Other</option>
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label>Primary Mobile *</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="+91 98765 43210"
+                      value={regForm.phone || ''}
+                      onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Alternate Mobile</label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98111 22334"
+                      value={regForm.alternate_phone || ''}
+                      onChange={e => setRegForm(f => ({ ...f, alternate_phone: e.target.value }))}
+                    />
+                  </div>
                 </div>
+
                 <div className="form-group">
-                  <label>City</label>
+                  <label>Gmail / Email ID *</label>
                   <input
-                    type="text"
-                    value={regForm.city || 'Delhi NCR'}
-                    onChange={e => setRegForm(f => ({ ...f, city: e.target.value }))}
+                    type="email"
+                    required
+                    placeholder="customer@gmail.com"
+                    value={regForm.email || ''}
+                    onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))}
                   />
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={() => setShowRegModal(false)}
-                  style={{ flex: 1, padding: 11 }}
-                >
-                  Cancel
-                </button>
+                <div className="form-group">
+                  <label>Complete Doorstep Address (Flat/House No, Building, Street) *</label>
+                  <textarea
+                    rows={2}
+                    required
+                    placeholder="Flat 402, Tower B, Green Park Residency, Sector 15"
+                    value={regForm.address || ''}
+                    onChange={e => setRegForm(f => ({ ...f, address: e.target.value }))}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label>Nearby Landmark</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Near City Mall"
+                      value={regForm.landmark || ''}
+                      onChange={e => setRegForm(f => ({ ...f, landmark: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Area Pin Code (6 Digits) *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      placeholder="e.g. 110016"
+                      value={regForm.pincode || ''}
+                      onChange={e => setRegForm(f => ({ ...f, pincode: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label>Address Type</label>
+                    <select
+                      value={regForm.address_type || 'Home'}
+                      onChange={e => setRegForm(f => ({ ...f, address_type: e.target.value }))}
+                    >
+                      <option value="Home">Home</option>
+                      <option value="Work">Office / Work</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>City</label>
+                    <input
+                      type="text"
+                      value={regForm.city || 'Delhi NCR'}
+                      onChange={e => setRegForm(f => ({ ...f, city: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
                 <button
                   type="submit"
+                  disabled={authLoading}
                   className="btn btn-primary"
-                  style={{ flex: 2, padding: 11, fontWeight: 800 }}
+                  style={{ width: '100%', padding: '13px', fontWeight: 800, fontSize: '0.94rem', marginTop: 6 }}
                 >
-                  Save &amp; Claim ₹100 Bonus
+                  {authLoading ? 'Registering...' : 'Save & Claim ₹100 Welcome Bonus'}
                 </button>
-              </div>
-            </form>
+
+                <div style={{ textAlign: 'center', fontSize: '0.82rem', color: '#64748b', marginTop: 4 }}>
+                  Already have an account?{' '}
+                  <span
+                    onClick={() => { setAuthMode('login'); setAuthError(''); }}
+                    style={{ color: 'var(--primary)', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Log In here
+                  </span>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

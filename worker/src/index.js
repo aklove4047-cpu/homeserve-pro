@@ -255,7 +255,8 @@ export default {
               landmark = ?, pincode = ?, alternate_phone = ?, address_type = ?
             WHERE id = ?
           `).bind(name, email, city, address, landmark, pincode, alternate_phone, address_type, existing.id).run();
-          return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(existing.id).first());
+          const updated = await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(existing.id).first();
+          return json({ success: true, customer: updated, ...updated });
         } else {
           const id = `cust-${crypto.randomUUID().slice(0, 8)}`;
           const now = new Date().toISOString();
@@ -266,8 +267,43 @@ export default {
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'Active', 'None', ?)
           `).bind(id, name, cleanPhone, email, city, address, landmark, pincode, alternate_phone, address_type, Number(wallet_balance), now).run();
-          return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first(), 201);
+          const created = await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first();
+          return json({ success: true, customer: created, bonus: Number(wallet_balance), ...created }, 201);
         }
+      }
+
+      if (path === '/api/customers/login' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const { phone, email } = body;
+        if (!phone && !email) {
+          return json({ error: 'Please enter your Mobile Phone Number or Email' }, 400);
+        }
+
+        let customer = null;
+        if (phone) {
+          const cleanPhone = phone.replace(/[\s+-]/g, '');
+          const last10 = cleanPhone.slice(-10);
+          customer = await env.DB.prepare(
+            'SELECT * FROM customers WHERE phone = ? OR phone = ? OR phone LIKE ?'
+          ).bind(cleanPhone, phone, `%${last10}%`).first();
+        } else if (email) {
+          customer = await env.DB.prepare(
+            'SELECT * FROM customers WHERE LOWER(email) = ?'
+          ).bind(email.trim().toLowerCase()).first();
+        }
+
+        if (!customer) {
+          return json({
+            error: 'No account registered with this phone/email. Please click Register to create your account & claim ₹100 Welcome Bonus!'
+          }, 404);
+        }
+
+        return json({
+          success: true,
+          message: 'Login successful!',
+          customer,
+          ...customer
+        });
       }
 
       if (path === '/api/customers' && method === 'POST') {
