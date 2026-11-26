@@ -6,8 +6,14 @@ import {
   AlertTriangle, Check, Ban, Search, Download, Edit3, Image, HelpCircle,
   TrendingUp, Clock, MapPin, Eye, Filter, ArrowUpRight, CheckCheck, X,
   Radio, Smartphone, UploadCloud, Key, Globe, Shield, Database, Sliders,
-  Printer, Star, ChevronRight, Lock
+  Printer, Star, ChevronRight, Lock, BarChart3, FileSpreadsheet, AlertOctagon,
+  Map, UserPlus, Building2, Activity, ArrowDownToLine
 } from 'lucide-react';
+import { ReportsTab, ServicemenTab, ZonesTab, IssuesTab, RolesTab } from './EnterpriseTabs';
+import {
+  AddServicemanModal, AddZoneModal, AddIssueModal,
+  ResolveIssueModal, AddStaffModal, AddCustomerModal
+} from './EnterpriseModals';
 
 const API = import.meta.env.VITE_API_URL || '';
 const STATUSES = ['pending', 'confirmed', 'assigned', 'in_progress', 'completed', 'cancelled'];
@@ -42,9 +48,17 @@ export default function App() {
   const [broadcast, setBroadcast] = useState({ message: '', is_active: 0 });
   const [reviews, setReviews] = useState([]);
   const [settings, setSettings] = useState({});
+
+  // Enterprise Extensions: Servicemen, Zones, Issues, Roles, Staff
+  const [servicemen, setServicemen] = useState([]);
+  const [zones, setZones] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [staff, setStaff] = useState([]);
+
   const [loading, setLoading] = useState(false);
 
-  // Filters
+  // Filters & Search
   const [statusFilter, setStatusFilter] = useState('all');
   const [cityFilter, setCityFilter] = useState('All');
   const [searchBooking, setSearchBooking] = useState('');
@@ -52,6 +66,44 @@ export default function App() {
   const [serviceCatFilter, setServiceCatFilter] = useState('all');
   const [searchCustomer, setSearchCustomer] = useState('');
   const [kycTab, setKycTab] = useState('All');
+
+  // Search & Filter for New Enterprise Tabs
+  const [searchServiceman, setSearchServiceman] = useState('');
+  const [servicemanCityFilter, setServicemanCityFilter] = useState('All');
+  const [issueFilter, setIssueFilter] = useState('All');
+  const [reportDateRange, setReportDateRange] = useState('30d');
+  const [reportCity, setReportCity] = useState('All');
+
+  // Modals for New Enterprise Features
+  const [showServicemanModal, setShowServicemanModal] = useState(false);
+  const [servicemanForm, setServicemanForm] = useState({
+    name: '', phone: '', email: '', city: 'Delhi NCR', zone_name: 'Central & South Zone', specialty: 'AC & Cooling', experience_years: 4, provider_name: 'FixoHub Direct Crew'
+  });
+
+  const [showZoneModal, setShowZoneModal] = useState(false);
+  const [zoneForm, setZoneForm] = useState({
+    name: '', city: 'Delhi NCR', pincodes: '', surge_multiplier: 1.0, visiting_charge: 49
+  });
+
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueForm, setIssueForm] = useState({
+    booking_code: '', customer_name: '', customer_phone: '', serviceman_name: '', category: 'Substandard Work', severity: 'Medium', description: ''
+  });
+
+  const [resolveIssueModal, setResolveIssueModal] = useState(null);
+  const [resolveForm, setResolveForm] = useState({
+    status: 'Resolved', resolution_notes: '', refund_amount: 0
+  });
+
+  const [showStaffModal, setShowStaffModal] = useState(false);
+  const [staffForm, setStaffForm] = useState({
+    name: '', email: '', phone: '', role_id: 'role-dispatch', role_name: 'Dispatch Manager', city_access: 'All Cities'
+  });
+
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({
+    name: '', phone: '', email: '', city: 'Delhi NCR', wallet_balance: 150
+  });
 
   // Modals & Action States
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -120,7 +172,8 @@ export default function App() {
     setLoading(true);
     try {
       const [
-        st, bk, sr, ct, tc, rq, pr, tx, ch, kc, py, cs, tk, ci, bn, bc, rv, sg
+        st, bk, sr, ct, tc, rq, pr, tx, ch, kc, py, cs, tk, ci, bn, bc, rv, sg,
+        sm, zn, is, rl, sf
       ] = await Promise.all([
         fetch(`${API}/api/stats`).then(r => r.json()).catch(() => ({})),
         fetch(`${API}/api/bookings`).then(r => r.json()).catch(() => []),
@@ -139,7 +192,12 @@ export default function App() {
         fetch(`${API}/api/banners`).then(r => r.json()).catch(() => []),
         fetch(`${API}/api/broadcast`).then(r => r.json()).catch(() => ({ message: '', is_active: 0 })),
         fetch(`${API}/api/reviews`).then(r => r.json()).catch(() => []),
-        fetch(`${API}/api/settings`).then(r => r.json()).catch(() => ({}))
+        fetch(`${API}/api/settings`).then(r => r.json()).catch(() => ({})),
+        fetch(`${API}/api/servicemen`).then(r => r.json()).catch(() => []),
+        fetch(`${API}/api/zones`).then(r => r.json()).catch(() => []),
+        fetch(`${API}/api/issues`).then(r => r.json()).catch(() => []),
+        fetch(`${API}/api/roles`).then(r => r.json()).catch(() => []),
+        fetch(`${API}/api/staff`).then(r => r.json()).catch(() => [])
       ]);
 
       setStats(st);
@@ -160,6 +218,11 @@ export default function App() {
       setBroadcast(bc || { message: '', is_active: 0 });
       setReviews(Array.isArray(rv) ? rv : []);
       setSettings(sg || {});
+      setServicemen(Array.isArray(sm) ? sm : []);
+      setZones(Array.isArray(zn) ? zn : []);
+      setIssues(Array.isArray(is) ? is : []);
+      setRoles(Array.isArray(rl) ? rl : []);
+      setStaff(Array.isArray(sf) ? sf : []);
 
       if (sg && sg.gateways_config) {
         setGatewaysForm(sg.gateways_config);
@@ -171,6 +234,261 @@ export default function App() {
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 1-Click Excel / CSV Export Generator (RFC-4180 Compliant with UTF-8 BOM)
+  const exportToCsv = (filename, dataRows, columnHeaders) => {
+    if (!dataRows || !dataRows.length) {
+      showToast('No records available to export', 'error');
+      return;
+    }
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+    const headerLine = columnHeaders.map(h => escapeCsv(h.label)).join(',');
+    const dataLines = dataRows.map(row => {
+      return columnHeaders.map(h => {
+        const raw = h.getValue ? h.getValue(row) : row[h.key];
+        return escapeCsv(raw);
+      }).join(',');
+    });
+    const csvContent = '\uFEFF' + [headerLine, ...dataLines].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Excel CSV "${filename}.csv" exported successfully!`);
+  };
+
+  // Servicemen Actions
+  const saveServiceman = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/api/servicemen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(servicemanForm)
+      });
+      if (res.ok) {
+        showToast('Field serviceman added successfully!');
+        setShowServicemanModal(false);
+        setServicemanForm({
+          name: '', phone: '', email: '', city: 'Delhi NCR', zone_name: 'Central & South Zone', specialty: 'AC & Cooling', experience_years: 4, provider_name: 'FixoHub Direct Crew'
+        });
+        fetchAll();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to add serviceman', 'error');
+      }
+    } catch {
+      showToast('Server error adding serviceman', 'error');
+    }
+  };
+
+  const toggleServicemanAvailability = async (sm) => {
+    try {
+      const res = await fetch(`${API}/api/servicemen/${sm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_available: sm.is_available ? 0 : 1 })
+      });
+      if (res.ok) {
+        showToast(`Serviceman ${sm.name} marked ${sm.is_available ? 'Offline' : 'On-Duty'}`);
+        fetchAll();
+      }
+    } catch {
+      showToast('Failed to update serviceman status', 'error');
+    }
+  };
+
+  const deleteServiceman = async (id) => {
+    if (!confirm('Are you sure you want to remove this serviceman from roster?')) return;
+    try {
+      const res = await fetch(`${API}/api/servicemen/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Serviceman removed from roster');
+        fetchAll();
+      }
+    } catch {
+      showToast('Failed to delete serviceman', 'error');
+    }
+  };
+
+  // Service Zone Actions
+  const saveZone = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/api/zones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(zoneForm)
+      });
+      if (res.ok) {
+        showToast('Service zone added successfully!');
+        setShowZoneModal(false);
+        setZoneForm({ name: '', city: 'Delhi NCR', pincodes: '', surge_multiplier: 1.0, visiting_charge: 49 });
+        fetchAll();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to add zone', 'error');
+      }
+    } catch {
+      showToast('Server error adding zone', 'error');
+    }
+  };
+
+  const toggleZoneActive = async (zn) => {
+    try {
+      const res = await fetch(`${API}/api/zones/${zn.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: zn.is_active ? 0 : 1 })
+      });
+      if (res.ok) {
+        showToast(`Zone ${zn.name} ${zn.is_active ? 'deactivated' : 'activated'}`);
+        fetchAll();
+      }
+    } catch {
+      showToast('Failed to toggle zone', 'error');
+    }
+  };
+
+  const deleteZone = async (id) => {
+    if (!confirm('Permanently delete this service zone?')) return;
+    try {
+      const res = await fetch(`${API}/api/zones/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Service zone deleted');
+        fetchAll();
+      }
+    } catch {
+      showToast('Failed to delete zone', 'error');
+    }
+  };
+
+  // Issue & Incident Actions
+  const saveIssue = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/api/issues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(issueForm)
+      });
+      if (res.ok) {
+        showToast('New issue recorded successfully');
+        setShowIssueModal(false);
+        setIssueForm({ booking_code: '', customer_name: '', customer_phone: '', serviceman_name: '', category: 'Substandard Work', severity: 'Medium', description: '' });
+        fetchAll();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to record issue', 'error');
+      }
+    } catch {
+      showToast('Error recording issue', 'error');
+    }
+  };
+
+  const submitResolveIssue = async (e) => {
+    e.preventDefault();
+    if (!resolveIssueModal) return;
+    try {
+      const res = await fetch(`${API}/api/issues/${resolveIssueModal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resolveForm)
+      });
+      if (res.ok) {
+        showToast(`Issue ${resolveIssueModal.id} resolved. Compensation processed!`);
+        setResolveIssueModal(null);
+        setResolveForm({ status: 'Resolved', resolution_notes: '', refund_amount: 0 });
+        fetchAll();
+      }
+    } catch {
+      showToast('Failed to update resolution', 'error');
+    }
+  };
+
+  // Staff & RBAC Actions
+  const saveStaffMember = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/api/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffForm)
+      });
+      if (res.ok) {
+        showToast('Staff member added with assigned role!');
+        setShowStaffModal(false);
+        setStaffForm({ name: '', email: '', phone: '', role_id: 'role-dispatch', role_name: 'Dispatch Manager', city_access: 'All Cities' });
+        fetchAll();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to add staff', 'error');
+      }
+    } catch {
+      showToast('Server error adding staff', 'error');
+    }
+  };
+
+  const toggleStaffStatus = async (st) => {
+    try {
+      const newStatus = st.status === 'Active' ? 'Suspended' : 'Active';
+      const res = await fetch(`${API}/api/staff/${st.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        showToast(`Staff member status changed to ${newStatus}`);
+        fetchAll();
+      }
+    } catch {
+      showToast('Failed to update staff status', 'error');
+    }
+  };
+
+  const deleteStaffMember = async (id) => {
+    if (!confirm('Remove staff access credentials permanently?')) return;
+    try {
+      const res = await fetch(`${API}/api/staff/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Staff member deleted');
+        fetchAll();
+      }
+    } catch {
+      showToast('Failed to delete staff member', 'error');
+    }
+  };
+
+  // New Customer Onboarding Action
+  const saveNewCustomer = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/api/customers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCustomerForm)
+      });
+      if (res.ok) {
+        showToast(`Customer ${newCustomerForm.name} onboarded with ₹${newCustomerForm.wallet_balance} wallet!`);
+        setShowNewCustomerModal(false);
+        setNewCustomerForm({ name: '', phone: '', email: '', city: 'Delhi NCR', wallet_balance: 150 });
+        fetchAll();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to create customer', 'error');
+      }
+    } catch {
+      showToast('Server error creating customer', 'error');
     }
   };
 
@@ -776,6 +1094,14 @@ export default function App() {
             <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{requests.length}</span>
           </button>
 
+          <button
+            onClick={() => setTab('reports')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'reports' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
+          >
+            <div className="flex items-center gap-2.5"><BarChart3 className="w-4 h-4 text-emerald-400" /> Reports & Analytics</div>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Excel</span>
+          </button>
+
           <div className="pt-3 px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Catalog & Team</div>
           <button
             onClick={() => setTab('services')}
@@ -799,6 +1125,22 @@ export default function App() {
           >
             <div className="flex items-center gap-2.5"><Users className="w-4 h-4" /> Providers & Techs</div>
             <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{technicians.length}</span>
+          </button>
+
+          <button
+            onClick={() => setTab('servicemen')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'servicemen' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
+          >
+            <div className="flex items-center gap-2.5"><Users className="w-4 h-4 text-amber-400" /> Servicemen (Field Crew)</div>
+            <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{servicemen.length}</span>
+          </button>
+
+          <button
+            onClick={() => setTab('zones')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'zones' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
+          >
+            <div className="flex items-center gap-2.5"><Map className="w-4 h-4 text-indigo-400" /> Service Operating Zones</div>
+            <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{zones.length}</span>
           </button>
 
           <div className="pt-3 px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Verification & Finance</div>
@@ -853,6 +1195,28 @@ export default function App() {
           >
             <div className="flex items-center gap-2.5"><HelpCircle className="w-4 h-4" /> Dispute & Support Tickets</div>
             <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{tickets.length}</span>
+          </button>
+
+          <button
+            onClick={() => setTab('issues')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'issues' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
+          >
+            <div className="flex items-center gap-2.5"><AlertOctagon className="w-4 h-4 text-red-400" /> Incident & Disputes</div>
+            {issues.filter(i => i.status === 'Open').length > 0 ? (
+              <span className="text-[10px] bg-red-500 text-white font-bold px-1.5 py-0.5 rounded-full">
+                {issues.filter(i => i.status === 'Open').length} Open
+              </span>
+            ) : (
+              <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{issues.length}</span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setTab('roles')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'roles' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
+          >
+            <div className="flex items-center gap-2.5"><ShieldCheck className="w-4 h-4 text-blue-400" /> Staff Roles (RBAC)</div>
+            <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{staff.length}</span>
           </button>
 
           <button
@@ -1213,8 +1577,32 @@ export default function App() {
                     {STATUSES.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
                   </select>
                 </div>
-                <div className="text-xs text-slate-500 font-medium">
-                  Showing {filteredBookings.length} of {bookings.length} Orders
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 font-medium">
+                    Showing {filteredBookings.length} of {bookings.length} Orders
+                  </span>
+                  <button
+                    onClick={() => {
+                      const headers = [
+                        { label: 'Booking Code', key: 'booking_code' },
+                        { label: 'Customer Name', key: 'customer_name' },
+                        { label: 'Customer Phone', key: 'customer_phone' },
+                        { label: 'City', key: 'city' },
+                        { label: 'Address', key: 'address' },
+                        { label: 'Category', key: 'category_name' },
+                        { label: 'Scheduled Date', key: 'scheduled_date' },
+                        { label: 'Scheduled Time', key: 'scheduled_time' },
+                        { label: 'Amount (INR)', key: 'total_amount' },
+                        { label: 'Payment Method', key: 'payment_method' },
+                        { label: 'Status', key: 'status' },
+                        { label: 'Assigned Provider', key: 'technician_name' }
+                      ];
+                      exportToCsv('FixoHub_Bookings_Report', filteredBookings, headers);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Export to Excel
+                  </button>
                 </div>
               </div>
 
@@ -1642,8 +2030,35 @@ export default function App() {
                     className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div className="text-xs text-slate-500 font-medium">
-                  {customers.length} Registered Consumers
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 font-medium">
+                    {customers.length} Registered Consumers
+                  </span>
+                  <button
+                    onClick={() => {
+                      const headers = [
+                        { label: 'Customer ID', key: 'id' },
+                        { label: 'Name', key: 'name' },
+                        { label: 'Phone', key: 'phone' },
+                        { label: 'Email', key: 'email' },
+                        { label: 'City', key: 'city' },
+                        { label: 'Wallet Balance (INR)', key: 'wallet_balance' },
+                        { label: 'Total Orders', key: 'orders_count' },
+                        { label: 'Total Spend (INR)', key: 'total_spend' },
+                        { label: 'Status', key: 'status' }
+                      ];
+                      exportToCsv('FixoHub_Customers_Directory', filteredCustomers, headers);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Export to Excel
+                  </button>
+                  <button
+                    onClick={() => setShowNewCustomerModal(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs shadow-sm transition"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" /> + Add New Customer
+                  </button>
                 </div>
               </div>
 
@@ -2254,6 +2669,24 @@ export default function App() {
                   <h3 className="text-lg font-bold text-slate-900">Payment & Transaction Audit Ledger</h3>
                   <p className="text-xs text-slate-500">Immutable ledger of customer orders and payouts</p>
                 </div>
+                <button
+                  onClick={() => {
+                    const headers = [
+                      { label: 'Transaction ID', key: 'id' },
+                      { label: 'Booking Code', key: 'booking_code' },
+                      { label: 'Customer', key: 'customer_name' },
+                      { label: 'Provider', key: 'provider_name' },
+                      { label: 'Payment Method', key: 'payment_method' },
+                      { label: 'Amount (INR)', key: 'amount' },
+                      { label: 'Status', key: 'status' },
+                      { label: 'Date', key: 'created_at' }
+                    ];
+                    exportToCsv('FixoHub_Transactions_Ledger', transactions, headers);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Ledger to Excel
+                </button>
               </div>
 
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2419,6 +2852,140 @@ export default function App() {
                 </div>
               </form>
             </div>
+          )}
+
+          {/* TAB: REPORTS & ANALYTICS */}
+          {tab === 'reports' && (
+            <ReportsTab
+              stats={stats}
+              bookings={bookings}
+              servicemen={servicemen}
+              customers={customers}
+              issues={issues}
+              transactions={transactions}
+              cities={cities}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: SERVICEMEN (FIELD CREW) */}
+          {tab === 'servicemen' && (
+            <ServicemenTab
+              servicemen={servicemen}
+              cities={cities}
+              onAddClick={() => setShowServicemanModal(true)}
+              onToggleAvailability={toggleServicemanAvailability}
+              onDeleteClick={deleteServiceman}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: SERVICE OPERATING ZONES */}
+          {tab === 'zones' && (
+            <ZonesTab
+              zones={zones}
+              cities={cities}
+              onAddClick={() => setShowZoneModal(true)}
+              onToggleActive={toggleZoneActive}
+              onDeleteClick={deleteZone}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: INCIDENT & DISPUTE TRACKING */}
+          {tab === 'issues' && (
+            <IssuesTab
+              issues={issues}
+              onAddClick={() => setShowIssueModal(true)}
+              onResolveClick={(iss) => {
+                setResolveIssueModal(iss);
+                setResolveForm({
+                  status: iss.status === 'Open' ? 'Resolved' : iss.status,
+                  resolution_notes: iss.resolution_notes || '',
+                  refund_amount: iss.refund_amount || 0
+                });
+              }}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: STAFF ROLES & RBAC */}
+          {tab === 'roles' && (
+            <RolesTab
+              roles={roles}
+              staff={staff}
+              onAddStaffClick={() => setShowStaffModal(true)}
+              onToggleStaffStatus={toggleStaffStatus}
+              onDeleteStaffClick={deleteStaffMember}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: REPORTS & ANALYTICS DASHBOARD */}
+          {tab === 'reports' && (
+            <ReportsTab
+              stats={stats}
+              bookings={bookings}
+              servicemen={servicemen}
+              customers={customers}
+              issues={issues}
+              transactions={transactions}
+              cities={cities}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: SERVICEMEN (FIELD CREW) MANAGEMENT */}
+          {tab === 'servicemen' && (
+            <ServicemenTab
+              servicemen={servicemen}
+              cities={cities}
+              onAddClick={() => setShowServicemanModal(true)}
+              onToggleAvailability={toggleServicemanAvailability}
+              onDeleteClick={deleteServiceman}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: SERVICE ZONES & GEO-FENCING */}
+          {tab === 'zones' && (
+            <ZonesTab
+              zones={zones}
+              cities={cities}
+              onAddClick={() => setShowZoneModal(true)}
+              onToggleActive={toggleZoneActive}
+              onDeleteClick={deleteZone}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: INCIDENT & DISPUTE TRACKING */}
+          {tab === 'issues' && (
+            <IssuesTab
+              issues={issues}
+              onAddClick={() => setShowIssueModal(true)}
+              onResolveClick={(iss) => {
+                setResolveIssueModal(iss);
+                setResolveForm({
+                  status: iss.status === 'Open' ? 'Resolved' : iss.status,
+                  resolution_notes: iss.resolution_notes || '',
+                  refund_amount: iss.refund_amount || 0
+                });
+              }}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB: USER ROLES & STAFF (RBAC) */}
+          {tab === 'roles' && (
+            <RolesTab
+              roles={roles}
+              staff={staff}
+              onAddStaffClick={() => setShowStaffModal(true)}
+              onToggleStaffStatus={toggleStaffStatus}
+              onDeleteStaffClick={deleteStaffMember}
+              showToast={showToast}
+            />
           )}
         </div>
       </main>
@@ -3015,6 +3582,60 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ENTERPRISE MODALS */}
+      <AddServicemanModal
+        isOpen={showServicemanModal}
+        onClose={() => setShowServicemanModal(false)}
+        form={servicemanForm}
+        setForm={setServicemanForm}
+        onSubmit={saveServiceman}
+        cities={cities}
+      />
+
+      <AddZoneModal
+        isOpen={showZoneModal}
+        onClose={() => setShowZoneModal(false)}
+        form={zoneForm}
+        setForm={setZoneForm}
+        onSubmit={saveZone}
+        cities={cities}
+      />
+
+      <AddIssueModal
+        isOpen={showIssueModal}
+        onClose={() => setShowIssueModal(false)}
+        form={issueForm}
+        setForm={setIssueForm}
+        onSubmit={saveIssue}
+      />
+
+      <ResolveIssueModal
+        issue={resolveIssueModal}
+        onClose={() => setResolveIssueModal(null)}
+        form={resolveForm}
+        setForm={setResolveForm}
+        onSubmit={submitResolveIssue}
+      />
+
+      <AddStaffModal
+        isOpen={showStaffModal}
+        onClose={() => setShowStaffModal(false)}
+        form={staffForm}
+        setForm={setStaffForm}
+        onSubmit={saveStaffMember}
+        roles={roles}
+        cities={cities}
+      />
+
+      <AddCustomerModal
+        isOpen={showNewCustomerModal}
+        onClose={() => setShowNewCustomerModal(false)}
+        form={newCustomerForm}
+        setForm={setNewCustomerForm}
+        onSubmit={saveNewCustomer}
+        cities={cities}
+      />
     </div>
   );
 }

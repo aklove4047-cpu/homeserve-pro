@@ -236,14 +236,14 @@ export default {
       }
 
       if (path === '/api/customers' && method === 'POST') {
-        const { name, phone, email = '', city = 'Delhi NCR' } = await request.json().catch(() => ({}));
+        const { name, phone, email = '', city = 'Delhi NCR', wallet_balance = 100 } = await request.json().catch(() => ({}));
         if (!name || !phone) return json({ error: 'name and phone are required' }, 400);
         const id = `cust-${crypto.randomUUID().slice(0, 8)}`;
         const now = new Date().toISOString();
         await env.DB.prepare(`
           INSERT INTO customers (id, name, phone, email, city, orders_count, total_spend, wallet_balance, status, joined_at)
-          VALUES (?, ?, ?, ?, ?, 0, 0, 100, 'Active', ?)
-        `).bind(id, name, phone, email, city, now).run();
+          VALUES (?, ?, ?, ?, ?, 0, 0, ?, 'Active', ?)
+        `).bind(id, name, phone, email, city, Number(wallet_balance), now).run();
         return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first(), 201);
       }
 
@@ -668,11 +668,16 @@ export default {
         const pendingPayouts = (await env.DB.prepare("SELECT COUNT(*) as c FROM partner_payouts WHERE status = 'Pending'").first()).c;
         const totalCustomers = (await env.DB.prepare('SELECT COUNT(*) as c FROM customers').first()).c;
         const openTickets = (await env.DB.prepare("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'Open'").first()).c;
+        const totalServicemen = (await env.DB.prepare('SELECT COUNT(*) as c FROM servicemen').first()).c;
+        const totalZones = (await env.DB.prepare('SELECT COUNT(*) as c FROM service_zones').first()).c;
+        const openIssues = (await env.DB.prepare("SELECT COUNT(*) as c FROM system_issues WHERE status = 'Open'").first()).c;
+        const totalStaff = (await env.DB.prepare('SELECT COUNT(*) as c FROM admin_staff').first()).c;
 
         return json({
           totalBookings, pendingBookings, completedBookings,
           activeServices, totalTechnicians, availableTechnicians,
-          totalRevenue, pendingKyc, pendingPayouts, totalCustomers, openTickets
+          totalRevenue, pendingKyc, pendingPayouts, totalCustomers, openTickets,
+          totalServicemen, totalZones, openIssues, totalStaff
         });
       }
 
@@ -743,6 +748,186 @@ export default {
         await env.DB.prepare('INSERT INTO chat_messages (id, partner_id, partner_name, sender, message, booking_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
           .bind(id, partner_id, partner_name, sender, message, booking_code, created_at).run();
         return json(await env.DB.prepare('SELECT * FROM chat_messages WHERE id = ?').bind(id).first(), 201);
+      }
+
+      // ==================== SERVICEMEN (FIELD STAFF) ====================
+      if (path === '/api/servicemen' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM servicemen ORDER BY jobs_completed DESC, created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/servicemen' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const { name, phone, email = '', city = 'Delhi NCR', zone_name = 'Central Zone', specialty, experience_years = 3, provider_name = 'FixoHub Direct Crew' } = body;
+        if (!name || !phone || !specialty) return json({ error: 'name, phone and specialty are required' }, 400);
+
+        const id = `sm-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO servicemen (id, name, phone, email, city, zone_name, specialty, experience_years, rating, jobs_completed, is_available, status, provider_name, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 4.9, 0, 1, 'Active', ?, ?)
+        `).bind(id, name, phone, email, city, zone_name, specialty, Number(experience_years), provider_name, now).run();
+
+        return json(await env.DB.prepare('SELECT * FROM servicemen WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/servicemen/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const existing = await env.DB.prepare('SELECT * FROM servicemen WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'Serviceman not found' }, 404);
+        const body = await request.json().catch(() => ({}));
+
+        const is_available = body.is_available !== undefined ? (body.is_available ? 1 : 0) : existing.is_available;
+        const status = body.status || existing.status;
+        const zone_name = body.zone_name || existing.zone_name;
+
+        await env.DB.prepare('UPDATE servicemen SET is_available = ?, status = ?, zone_name = ? WHERE id = ?')
+          .bind(is_available, status, zone_name, id).run();
+        return json(await env.DB.prepare('SELECT * FROM servicemen WHERE id = ?').bind(id).first());
+      }
+
+      if (path.startsWith('/api/servicemen/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM servicemen WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // ==================== SERVICE ZONES (GEO-FENCING) ====================
+      if (path === '/api/zones' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM service_zones ORDER BY city ASC, name ASC').all();
+        return json(results);
+      }
+
+      if (path === '/api/zones' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const { name, city, pincodes = '', surge_multiplier = 1.0, visiting_charge = 49 } = body;
+        if (!name || !city) return json({ error: 'name and city are required' }, 400);
+
+        const id = `zn-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO service_zones (id, name, city, pincodes, surge_multiplier, visiting_charge, is_active, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+        `).bind(id, name, city, pincodes, Number(surge_multiplier), Number(visiting_charge), now).run();
+
+        return json(await env.DB.prepare('SELECT * FROM service_zones WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/zones/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const existing = await env.DB.prepare('SELECT * FROM service_zones WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'Zone not found' }, 404);
+        const body = await request.json().catch(() => ({}));
+
+        const is_active = body.is_active !== undefined ? (body.is_active ? 1 : 0) : existing.is_active;
+        const surge = body.surge_multiplier !== undefined ? Number(body.surge_multiplier) : existing.surge_multiplier;
+        const visiting = body.visiting_charge !== undefined ? Number(body.visiting_charge) : existing.visiting_charge;
+
+        await env.DB.prepare('UPDATE service_zones SET is_active = ?, surge_multiplier = ?, visiting_charge = ? WHERE id = ?')
+          .bind(is_active, surge, visiting, id).run();
+        return json(await env.DB.prepare('SELECT * FROM service_zones WHERE id = ?').bind(id).first());
+      }
+
+      if (path.startsWith('/api/zones/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM service_zones WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
+      }
+
+      // ==================== SYSTEM ISSUES & DISPUTES ====================
+      if (path === '/api/issues' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM system_issues ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/issues' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const { booking_code = '', customer_name, customer_phone, serviceman_name = 'Unassigned', category = 'Service Quality', severity = 'Medium', description } = body;
+        if (!customer_name || !customer_phone || !description) return json({ error: 'Missing required issue fields' }, 400);
+
+        const id = `ISSUE-${Math.floor(100 + Math.random() * 900)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO system_issues (id, booking_code, customer_name, customer_phone, serviceman_name, category, severity, description, status, refund_amount, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Open', 0, ?)
+        `).bind(id, booking_code, customer_name, customer_phone, serviceman_name, category, severity, description, now).run();
+
+        return json(await env.DB.prepare('SELECT * FROM system_issues WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/issues/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const existing = await env.DB.prepare('SELECT * FROM system_issues WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'Issue not found' }, 404);
+        const body = await request.json().catch(() => ({}));
+
+        const status = body.status || existing.status;
+        const resolution_notes = body.resolution_notes !== undefined ? body.resolution_notes : existing.resolution_notes;
+        const refund_amount = body.refund_amount !== undefined ? Number(body.refund_amount) : existing.refund_amount;
+        const now = new Date().toISOString();
+
+        await env.DB.prepare(`
+          UPDATE system_issues
+          SET status = ?, resolution_notes = ?, refund_amount = ?, resolved_at = ?
+          WHERE id = ?
+        `).bind(status, resolution_notes, refund_amount, status === 'Resolved' ? now : null, id).run();
+
+        // If refund_amount > 0 and customer has wallet, add refund credit to customer wallet!
+        if (refund_amount > 0 && existing.customer_phone) {
+          const cleanPhone = existing.customer_phone.replace(/\s+/g, '');
+          await env.DB.prepare(`
+            UPDATE customers SET wallet_balance = wallet_balance + ? WHERE phone = ?
+          `).bind(refund_amount, cleanPhone).run().catch(() => {});
+        }
+
+        return json(await env.DB.prepare('SELECT * FROM system_issues WHERE id = ?').bind(id).first());
+      }
+
+      // ==================== USER ROLES & STAFF (RBAC) ====================
+      if (path === '/api/roles' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM admin_roles').all();
+        return json(results);
+      }
+
+      if (path === '/api/staff' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM admin_staff ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/staff' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const { name, email, phone, role_id = 'role-support', role_name = 'Staff Member', city_access = 'All Cities' } = body;
+        if (!name || !email || !phone) return json({ error: 'name, email and phone are required' }, 400);
+
+        const id = `staff-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+          INSERT INTO admin_staff (id, name, email, phone, role_id, role_name, city_access, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', ?)
+        `).bind(id, name, email, phone, role_id, role_name, city_access, now).run();
+
+        return json(await env.DB.prepare('SELECT * FROM admin_staff WHERE id = ?').bind(id).first(), 201);
+      }
+
+      if (path.startsWith('/api/staff/') && method === 'PATCH') {
+        const id = path.split('/').pop();
+        const existing = await env.DB.prepare('SELECT * FROM admin_staff WHERE id = ?').bind(id).first();
+        if (!existing) return json({ error: 'Staff member not found' }, 404);
+        const body = await request.json().catch(() => ({}));
+
+        const status = body.status || existing.status;
+        const role_name = body.role_name || existing.role_name;
+        const city_access = body.city_access || existing.city_access;
+
+        await env.DB.prepare('UPDATE admin_staff SET status = ?, role_name = ?, city_access = ? WHERE id = ?')
+          .bind(status, role_name, city_access, id).run();
+        return json(await env.DB.prepare('SELECT * FROM admin_staff WHERE id = ?').bind(id).first());
+      }
+
+      if (path.startsWith('/api/staff/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM admin_staff WHERE id = ?').bind(id).run();
+        return json({ deleted: true });
       }
 
       // ==================== TRANSACTIONS & BLOGS ====================
