@@ -363,7 +363,7 @@ export function ReportsTab({ stats, bookings, servicemen, customers, issues, tra
 // ==========================================
 // 2. SERVICEMEN (FIELD CREW) MANAGEMENT TAB
 // ==========================================
-export function ServicemenTab({ servicemen, cities, onAddClick, onToggleAvailability, onDeleteClick, showToast }) {
+export function ServicemenTab({ servicemen, cities, onAddClick, onToggleAvailability, onDeleteClick, onViewDetails, showToast }) {
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('All');
 
@@ -374,6 +374,8 @@ export function ServicemenTab({ servicemen, cities, onAddClick, onToggleAvailabi
       const matchSearch = !search ||
         s.name.toLowerCase().includes(q) ||
         s.phone.includes(q) ||
+        (s.pincode && s.pincode.includes(q)) ||
+        (s.email && s.email.toLowerCase().includes(q)) ||
         s.specialty.toLowerCase().includes(q) ||
         (s.zone_name && s.zone_name.toLowerCase().includes(q));
       return matchCity && matchSearch;
@@ -385,18 +387,29 @@ export function ServicemenTab({ servicemen, cities, onAddClick, onToggleAvailabi
       { label: 'Serviceman ID', key: 'id' },
       { label: 'Name', key: 'name' },
       { label: 'Phone', key: 'phone' },
-      { label: 'Email', key: 'email' },
-      { label: 'City', key: 'city' },
+      { label: 'Email / Gmail', key: 'email' },
+      { label: 'Operating Pincode', key: 'pincode' },
+      { label: 'City Hub', key: 'city' },
       { label: 'Zone Name', key: 'zone_name' },
       { label: 'Specialty', key: 'specialty' },
       { label: 'Experience (Years)', key: 'experience_years' },
       { label: 'Rating', key: 'rating' },
       { label: 'Jobs Completed', key: 'jobs_completed' },
-      { label: 'On Duty Status', getValue: s => (s.is_available ? 'Available' : 'Offline') },
+      { label: 'Aadhaar Number', key: 'aadhaar_number' },
+      { label: 'ID Proof Type', key: 'id_proof_type' },
+      { label: 'ID Proof Number', key: 'id_proof_number' },
+      { label: 'Bank Name', key: 'bank_name' },
+      { label: 'Bank Account Number', key: 'bank_account_number' },
+      { label: 'Bank IFSC Code', key: 'bank_ifsc' },
+      { label: 'Account Holder Name', key: 'bank_holder_name' },
+      { label: 'UPI ID', key: 'upi_id' },
+      { label: 'Address', key: 'address' },
+      { label: 'Police Verified', getValue: s => (s.police_verified ? 'Verified' : 'Pending') },
+      { label: 'Duty Status', getValue: s => (s.is_available ? 'Available' : 'Offline') },
       { label: 'Account Status', key: 'status' },
-      { label: 'Provider / Agency', key: 'provider_name' }
+      { label: 'Crew / Agency', key: 'provider_name' }
     ];
-    exportToCsv('FixoHub_Servicemen_Directory', filtered, headers, showToast);
+    exportToCsv('FixoHub_Servicemen_Comprehensive_Directory', filtered, headers, showToast);
   };
 
   return (
@@ -408,10 +421,10 @@ export function ServicemenTab({ servicemen, cities, onAddClick, onToggleAvailabi
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
-              placeholder="Search serviceman name, phone, specialty..."
+              placeholder="Search name, phone, PIN, Gmail, specialty..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -445,70 +458,110 @@ export function ServicemenTab({ servicemen, cities, onAddClick, onToggleAvailabi
       {/* Grid of Servicemen Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(sm => (
-          <div key={sm.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition space-y-4">
+          <div key={sm.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition space-y-3.5">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center text-base shadow-sm">
-                  {sm.name.slice(0, 2).toUpperCase()}
-                </div>
+                {sm.profile_image ? (
+                  <img
+                    src={sm.profile_image}
+                    alt={sm.name}
+                    className="w-13 h-13 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0"
+                    style={{ width: '52px', height: '52px' }}
+                  />
+                ) : (
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center text-base shadow-sm shrink-0" style={{ width: '52px', height: '52px' }}>
+                    {sm.name ? sm.name.slice(0, 2).toUpperCase() : 'SM'}
+                  </div>
+                )}
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">{sm.name}</h4>
-                  <span className="inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                    {sm.specialty}
-                  </span>
+                  <h4 className="font-bold text-slate-900 text-sm leading-snug">{sm.name}</h4>
+                  <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                      {sm.specialty}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                      📍 {sm.pincode || '110016'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
                 ⭐ {sm.rating || 4.9}
               </span>
             </div>
 
-            <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 rounded-xl">
+            {/* Contact Details (Phone & Gmail) */}
+            <div className="text-xs text-slate-600 space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Hub & Zone:</span>
-                <span className="font-semibold text-slate-800">{sm.city} • {sm.zone_name}</span>
+                <span className="text-slate-400">Phone:</span>
+                <span className="font-mono font-semibold text-slate-800">{sm.phone}</span>
               </div>
+              {sm.email && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3 text-red-500" /> Gmail:</span>
+                  <span className="font-medium text-slate-800 truncate max-w-[170px]">{sm.email}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Experience:</span>
-                <span className="font-semibold text-slate-800">{sm.experience_years} Years field experience</span>
+                <span className="text-slate-400">City & Zone:</span>
+                <span className="font-semibold text-slate-800">{sm.city} • {sm.zone_name || 'Central Zone'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Jobs Completed:</span>
                 <span className="font-bold text-emerald-600">{sm.jobs_completed} verified orders</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Crew / Agency:</span>
-                <span className="font-medium text-slate-700">{sm.provider_name}</span>
-              </div>
             </div>
 
+            {/* KYC & Bank Verification Badges */}
+            <div className="flex flex-wrap gap-1.5 text-[10px]">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                <ShieldCheck className="w-3 h-3" /> Aadhaar: {sm.aadhaar_number ? `••• ${sm.aadhaar_number.slice(-4)}` : 'Verified'}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Landmark className="w-3 h-3" /> {sm.bank_name ? sm.bank_name.split(' ')[0] : 'Bank'} Acc Verified
+              </span>
+              {sm.police_verified ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  ✓ Police Verified
+                </span>
+              ) : null}
+            </div>
+
+            {/* Actions & Inspect KYC Button */}
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => onToggleAvailability(sm)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition ${
                     sm.is_available
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full ${sm.is_available ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                  {sm.is_available ? 'Available (On Duty)' : 'Offline / Off-Duty'}
+                  {sm.is_available ? 'On Duty' : 'Offline'}
+                </button>
+
+                <button
+                  onClick={() => onViewDetails && onViewDetails(sm)}
+                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-[11px] font-bold transition flex items-center gap-1"
+                >
+                  <Eye className="w-3 h-3" /> View KYC & Bank
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <a
                   href={`tel:${sm.phone}`}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium transition"
+                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs transition"
                   title="Call Serviceman"
                 >
                   <Phone className="w-3.5 h-3.5" />
                 </a>
                 <button
                   onClick={() => onDeleteClick(sm.id)}
-                  className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs transition"
+                  className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs transition"
                   title="Delete Serviceman"
                 >
                   <Ban className="w-3.5 h-3.5" />

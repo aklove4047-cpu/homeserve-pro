@@ -552,13 +552,31 @@ export default {
       }
 
       if (path === '/api/technicians' && method === 'POST') {
-        const { name, phone, specialty, city = 'Delhi NCR' } = await request.json().catch(() => ({}));
+        const body = await request.json().catch(() => ({}));
+        const {
+          name, phone, specialty, city = 'Delhi NCR', pincode = '110001', email = '',
+          profile_image = '', id_proof_type = 'PAN Card', id_proof_number = '', id_proof_image = '',
+          aadhaar_number = '', aadhaar_image = '',
+          bank_name = 'State Bank of India', bank_account_number = '', bank_ifsc = '', bank_holder_name = '', upi_id = '',
+          address = '', emergency_contact = '', police_verified = 1, certification = 'Certified ITI Expert'
+        } = body;
         if (!name || !phone || !specialty) return json({ error: 'name, phone and specialty are required' }, 400);
         const id = `tech-${crypto.randomUUID().slice(0, 8)}`;
         await env.DB.prepare(`
-          INSERT INTO technicians (id, name, phone, specialty, city, rating, jobs_completed, is_available, avatar_color)
-          VALUES (?, ?, ?, ?, ?, 4.9, 0, 1, '#0079ff')
-        `).bind(id, name, phone, specialty, city).run();
+          INSERT INTO technicians (
+            id, name, phone, specialty, city, pincode, email, profile_image,
+            id_proof_type, id_proof_number, id_proof_image, aadhaar_number, aadhaar_image,
+            bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
+            address, emergency_contact, police_verified, certification,
+            rating, jobs_completed, is_available, avatar_color
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4.9, 0, 1, '#0079ff')
+        `).bind(
+          id, name, phone, specialty, city, pincode, email, profile_image,
+          id_proof_type, id_proof_number, id_proof_image, aadhaar_number, aadhaar_image,
+          bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
+          address, emergency_contact, Number(police_verified), certification
+        ).run();
         return json(await env.DB.prepare('SELECT * FROM technicians WHERE id = ?').bind(id).first(), 201);
       }
 
@@ -567,8 +585,43 @@ export default {
         const existing = await env.DB.prepare('SELECT * FROM technicians WHERE id = ?').bind(id).first();
         if (!existing) return json({ error: 'Technician not found' }, 404);
         const body = await request.json().catch(() => ({}));
+
         const is_available = body.is_available !== undefined ? (body.is_available ? 1 : 0) : existing.is_available;
-        await env.DB.prepare('UPDATE technicians SET is_available = ? WHERE id = ?').bind(is_available, id).run();
+        const name = body.name ?? existing.name;
+        const phone = body.phone ?? existing.phone;
+        const specialty = body.specialty ?? existing.specialty;
+        const city = body.city ?? existing.city;
+        const pincode = body.pincode ?? existing.pincode;
+        const email = body.email ?? existing.email;
+        const profile_image = body.profile_image ?? existing.profile_image;
+        const id_proof_type = body.id_proof_type ?? existing.id_proof_type;
+        const id_proof_number = body.id_proof_number ?? existing.id_proof_number;
+        const id_proof_image = body.id_proof_image ?? existing.id_proof_image;
+        const aadhaar_number = body.aadhaar_number ?? existing.aadhaar_number;
+        const aadhaar_image = body.aadhaar_image ?? existing.aadhaar_image;
+        const bank_name = body.bank_name ?? existing.bank_name;
+        const bank_account_number = body.bank_account_number ?? existing.bank_account_number;
+        const bank_ifsc = body.bank_ifsc ?? existing.bank_ifsc;
+        const bank_holder_name = body.bank_holder_name ?? existing.bank_holder_name;
+        const upi_id = body.upi_id ?? existing.upi_id;
+        const address = body.address ?? existing.address;
+        const emergency_contact = body.emergency_contact ?? existing.emergency_contact;
+        const police_verified = body.police_verified !== undefined ? Number(body.police_verified) : existing.police_verified;
+        const certification = body.certification ?? existing.certification;
+
+        await env.DB.prepare(`
+          UPDATE technicians SET
+            is_available = ?, name = ?, phone = ?, specialty = ?, city = ?, pincode = ?, email = ?, profile_image = ?,
+            id_proof_type = ?, id_proof_number = ?, id_proof_image = ?, aadhaar_number = ?, aadhaar_image = ?,
+            bank_name = ?, bank_account_number = ?, bank_ifsc = ?, bank_holder_name = ?, upi_id = ?,
+            address = ?, emergency_contact = ?, police_verified = ?, certification = ?
+          WHERE id = ?
+        `).bind(
+          is_available, name, phone, specialty, city, pincode, email, profile_image,
+          id_proof_type, id_proof_number, id_proof_image, aadhaar_number, aadhaar_image,
+          bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
+          address, emergency_contact, police_verified, certification, id
+        ).run();
         return json(await env.DB.prepare('SELECT * FROM technicians WHERE id = ?').bind(id).first());
       }
 
@@ -758,15 +811,33 @@ export default {
 
       if (path === '/api/servicemen' && method === 'POST') {
         const body = await request.json().catch(() => ({}));
-        const { name, phone, email = '', city = 'Delhi NCR', zone_name = 'Central Zone', specialty, experience_years = 3, provider_name = 'FixoHub Direct Crew' } = body;
+        const {
+          name, phone, email = '', city = 'Delhi NCR', pincode = '110001', zone_name = 'Central Zone',
+          specialty, experience_years = 3, provider_name = 'FixoHub Direct Crew',
+          profile_image = '', id_proof_type = 'PAN Card', id_proof_number = '', id_proof_image = '',
+          aadhaar_number = '', aadhaar_image = '',
+          bank_name = 'HDFC Bank', bank_account_number = '', bank_ifsc = '', bank_holder_name = '', upi_id = '',
+          address = '', emergency_contact = '', police_verified = 1, certification = 'Certified ITI Expert'
+        } = body;
         if (!name || !phone || !specialty) return json({ error: 'name, phone and specialty are required' }, 400);
 
         const id = `sm-${crypto.randomUUID().slice(0, 8)}`;
         const now = new Date().toISOString();
         await env.DB.prepare(`
-          INSERT INTO servicemen (id, name, phone, email, city, zone_name, specialty, experience_years, rating, jobs_completed, is_available, status, provider_name, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 4.9, 0, 1, 'Active', ?, ?)
-        `).bind(id, name, phone, email, city, zone_name, specialty, Number(experience_years), provider_name, now).run();
+          INSERT INTO servicemen (
+            id, name, phone, email, city, pincode, zone_name, specialty, experience_years,
+            rating, jobs_completed, is_available, status, provider_name,
+            profile_image, id_proof_type, id_proof_number, id_proof_image,
+            aadhaar_number, aadhaar_image, bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
+            address, emergency_contact, police_verified, certification, created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 4.9, 0, 1, 'Active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          id, name, phone, email, city, pincode, zone_name, specialty, Number(experience_years), provider_name,
+          profile_image, id_proof_type, id_proof_number, id_proof_image,
+          aadhaar_number, aadhaar_image, bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
+          address, emergency_contact, Number(police_verified), certification, now
+        ).run();
 
         return json(await env.DB.prepare('SELECT * FROM servicemen WHERE id = ?').bind(id).first(), 201);
       }
@@ -780,9 +851,45 @@ export default {
         const is_available = body.is_available !== undefined ? (body.is_available ? 1 : 0) : existing.is_available;
         const status = body.status || existing.status;
         const zone_name = body.zone_name || existing.zone_name;
+        const name = body.name ?? existing.name;
+        const phone = body.phone ?? existing.phone;
+        const email = body.email ?? existing.email;
+        const city = body.city ?? existing.city;
+        const pincode = body.pincode ?? existing.pincode;
+        const specialty = body.specialty ?? existing.specialty;
+        const experience_years = body.experience_years !== undefined ? Number(body.experience_years) : existing.experience_years;
+        const provider_name = body.provider_name ?? existing.provider_name;
+        const profile_image = body.profile_image ?? existing.profile_image;
+        const id_proof_type = body.id_proof_type ?? existing.id_proof_type;
+        const id_proof_number = body.id_proof_number ?? existing.id_proof_number;
+        const id_proof_image = body.id_proof_image ?? existing.id_proof_image;
+        const aadhaar_number = body.aadhaar_number ?? existing.aadhaar_number;
+        const aadhaar_image = body.aadhaar_image ?? existing.aadhaar_image;
+        const bank_name = body.bank_name ?? existing.bank_name;
+        const bank_account_number = body.bank_account_number ?? existing.bank_account_number;
+        const bank_ifsc = body.bank_ifsc ?? existing.bank_ifsc;
+        const bank_holder_name = body.bank_holder_name ?? existing.bank_holder_name;
+        const upi_id = body.upi_id ?? existing.upi_id;
+        const address = body.address ?? existing.address;
+        const emergency_contact = body.emergency_contact ?? existing.emergency_contact;
+        const police_verified = body.police_verified !== undefined ? Number(body.police_verified) : existing.police_verified;
+        const certification = body.certification ?? existing.certification;
 
-        await env.DB.prepare('UPDATE servicemen SET is_available = ?, status = ?, zone_name = ? WHERE id = ?')
-          .bind(is_available, status, zone_name, id).run();
+        await env.DB.prepare(`
+          UPDATE servicemen SET
+            is_available = ?, status = ?, zone_name = ?, name = ?, phone = ?, email = ?, city = ?, pincode = ?,
+            specialty = ?, experience_years = ?, provider_name = ?, profile_image = ?,
+            id_proof_type = ?, id_proof_number = ?, id_proof_image = ?, aadhaar_number = ?, aadhaar_image = ?,
+            bank_name = ?, bank_account_number = ?, bank_ifsc = ?, bank_holder_name = ?, upi_id = ?,
+            address = ?, emergency_contact = ?, police_verified = ?, certification = ?
+          WHERE id = ?
+        `).bind(
+          is_available, status, zone_name, name, phone, email, city, pincode,
+          specialty, experience_years, provider_name, profile_image,
+          id_proof_type, id_proof_number, id_proof_image, aadhaar_number, aadhaar_image,
+          bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
+          address, emergency_contact, police_verified, certification, id
+        ).run();
         return json(await env.DB.prepare('SELECT * FROM servicemen WHERE id = ?').bind(id).first());
       }
 
