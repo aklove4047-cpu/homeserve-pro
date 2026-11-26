@@ -546,7 +546,11 @@ export default {
         const { phone } = await request.json().catch(() => ({}));
         const clean = String(phone || '').replace(/\s+/g, '');
         const { results } = await env.DB.prepare('SELECT * FROM technicians').all();
-        const found = results.find(t => t.phone.replace(/\s+/g, '').includes(clean) || t.id === phone);
+        const found = results.find(t => 
+          (t.phone && t.phone.replace(/\s+/g, '').includes(clean)) || 
+          t.id === phone || 
+          (t.email && t.email.toLowerCase().trim() === clean.toLowerCase())
+        );
         if (!found) return json({ error: 'Partner not found' }, 404);
         return json(found);
       }

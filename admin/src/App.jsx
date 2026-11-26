@@ -1051,9 +1051,8 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex text-slate-800">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-semibold transition-all duration-300 ${
-          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white border border-slate-700'
-        }`}>
+        <div className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-semibold transition-all duration-300 ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white border border-slate-700'
+          }`}>
           <CheckCircle className="w-5 h-5 text-emerald-400" />
           <span>{toast.message}</span>
         </div>
@@ -1458,11 +1457,10 @@ export default function App() {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-slate-900">₹{b.total_amount}</div>
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase mt-0.5 ${
-                            b.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                            b.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                            b.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
-                          }`}>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase mt-0.5 ${b.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                              b.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                                b.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                            }`}>
                             {b.status}
                           </span>
                         </div>
@@ -1672,12 +1670,11 @@ export default function App() {
                           <select
                             value={b.status}
                             onChange={(e) => updateBooking(b.id, { status: e.target.value })}
-                            className={`text-[11px] font-semibold px-2 py-1 rounded-lg border focus:outline-none ${
-                              b.status === 'completed' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
-                              b.status === 'confirmed' ? 'bg-blue-50 text-blue-800 border-blue-300' :
-                              b.status === 'pending' ? 'bg-amber-50 text-amber-800 border-amber-300' :
-                              b.status === 'cancelled' ? 'bg-red-50 text-red-800 border-red-300' : 'bg-slate-100 text-slate-700 border-slate-300'
-                            }`}
+                            className={`text-[11px] font-semibold px-2 py-1 rounded-lg border focus:outline-none ${b.status === 'completed' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
+                                b.status === 'confirmed' ? 'bg-blue-50 text-blue-800 border-blue-300' :
+                                  b.status === 'pending' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                                    b.status === 'cancelled' ? 'bg-red-50 text-red-800 border-red-300' : 'bg-slate-100 text-slate-700 border-slate-300'
+                              }`}
                           >
                             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
@@ -2020,10 +2017,9 @@ export default function App() {
                         <td className="p-4 font-medium text-slate-800">{k.doc_type}</td>
                         <td className="p-4 font-mono text-slate-600">{k.cert_no}</td>
                         <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                            k.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
-                            k.status === 'Pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
-                          }`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${k.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                              k.status === 'Pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                            }`}>
                             {k.status}
                           </span>
                         </td>
@@ -2094,9 +2090,8 @@ export default function App() {
                         <td className="p-4 font-mono text-slate-600">{p.upi_id || p.bank_account || 'Default UPI'}</td>
                         <td className="p-4 text-slate-700">{p.jobs_count || 1} jobs completed</td>
                         <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                            p.status === 'Settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${p.status === 'Settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
                             {p.status}
                           </span>
                           {p.utr_number && <div className="text-[10px] text-slate-400 font-mono mt-0.5">UTR: {p.utr_number}</div>}
@@ -2530,9 +2525,8 @@ export default function App() {
                           {t.reply_text && <div className="text-emerald-600 text-[11px] mt-0.5">Reply: {t.reply_text}</div>}
                         </td>
                         <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                            t.status === 'Resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${t.status === 'Resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
                             {t.status}
                           </span>
                         </td>
