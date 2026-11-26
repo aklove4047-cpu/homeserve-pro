@@ -196,20 +196,63 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('fh_bookmarks') || '[]'); } catch { return []; }
   });
 
+  // Customer Profile & Authentication State
+  const [customer, setCustomer] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('fh_customer') || 'null') || {
+        name: 'Rahul Sharma',
+        phone: '+91 98765 43210',
+        email: 'rahul.sharma@gmail.com',
+        address: 'Flat 402, Tower B, Green Park Residency',
+        landmark: 'Near City Mall',
+        pincode: '110016',
+        alternate_phone: '+91 98111 22334',
+        address_type: 'Home',
+        city: 'Delhi NCR',
+        active_subscription: null
+      };
+    } catch {
+      return {
+        name: 'Rahul Sharma',
+        phone: '+91 98765 43210',
+        email: 'rahul.sharma@gmail.com',
+        address: 'Flat 402, Tower B, Green Park Residency',
+        landmark: 'Near City Mall',
+        pincode: '110016',
+        alternate_phone: '',
+        address_type: 'Home',
+        city: 'Delhi NCR',
+        active_subscription: null
+      };
+    }
+  });
+
+  const [showRegModal, setShowRegModal] = useState(false);
+  const [regForm, setRegForm] = useState(customer);
+  const [amcPlans, setAmcPlans] = useState([]);
+  const [amcSuccessModal, setAmcSuccessModal] = useState(null);
+
   const [reqForm, setReqForm] = useState({
-    customer_name: 'Rahul Sharma', title: '', category_name: 'Laptop & PC', description: '', min_budget: 500, max_budget: 2500
+    customer_name: customer.name || 'Rahul Sharma', title: '', category_name: 'Laptop & PC', description: '', min_budget: 500, max_budget: 2500
   });
 
   const [form, setForm] = useState({
-    customer_name: 'Rahul Sharma', customer_phone: '+91 98765 43210', address: 'Flat 402, Green Park Residency',
+    customer_name: customer.name || 'Rahul Sharma',
+    customer_phone: customer.phone || '+91 98765 43210',
+    alternate_phone: customer.alternate_phone || '',
+    address: customer.address || 'Flat 402, Green Park Residency',
+    landmark: customer.landmark || 'Near City Mall',
+    pincode: customer.pincode || '110016',
     scheduled_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-    scheduled_slot: TIME_SLOTS[1], payment_method: 'FixoWallet (Fast & 5% Cashback)', notes: ''
+    scheduled_slot: TIME_SLOTS[1],
+    payment_method: 'FixoWallet (Fast & 5% Cashback)',
+    notes: ''
   });
 
   useEffect(() => { document.body.classList.toggle('dark', darkMode); }, [darkMode]);
 
   const loadAll = async () => {
-    const [cats, srvs, techs, bks, reqs, prms, chts, blgs] = await Promise.all([
+    const [cats, srvs, techs, bks, reqs, prms, chts, blgs, ap] = await Promise.all([
       fetch(`${API}/api/categories`).then(r => r.json()).catch(() => []),
       fetch(`${API}/api/services`).then(r => r.json()).catch(() => []),
       fetch(`${API}/api/technicians`).then(r => r.json()).catch(() => []),
@@ -217,10 +260,12 @@ export default function App() {
       fetch(`${API}/api/requests`).then(r => r.json()).catch(() => []),
       fetch(`${API}/api/promocodes`).then(r => r.json()).catch(() => []),
       fetch(`${API}/api/chats`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/api/blogs`).then(r => r.json()).catch(() => [])
+      fetch(`${API}/api/blogs`).then(r => r.json()).catch(() => []),
+      fetch(`${API}/api/amc-plans`).then(r => r.json()).catch(() => [])
     ]);
     setCategories(cats); setServices(srvs); setProviders(techs);
     setBookings(bks); setRequests(reqs); setPromos(prms); setChats(chts); setBlogs(blgs);
+    setAmcPlans(Array.isArray(ap) ? ap : []);
     if (!activePartner && techs.length) setActivePartner(techs[0]);
   };
 
@@ -315,6 +360,87 @@ export default function App() {
     alert(`₹${amt + bonus} successfully added to FixoWallet!`);
   };
 
+  // Customer Registration & Profile Handler
+  const handleRegisterCustomer = async (e) => {
+    e?.preventDefault();
+    try {
+      const res = await fetch(`${API}/api/customers/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(regForm)
+      });
+      const data = await res.json();
+      if (data.success && data.customer) {
+        setCustomer(data.customer);
+        localStorage.setItem('fh_customer', JSON.stringify(data.customer));
+        setForm(f => ({
+          ...f,
+          customer_name: data.customer.name,
+          customer_phone: data.customer.phone,
+          alternate_phone: data.customer.alternate_phone || '',
+          address: data.customer.address || f.address,
+          landmark: data.customer.landmark || '',
+          pincode: data.customer.pincode || ''
+        }));
+        if (data.bonus) {
+          const newBal = (Number(walletBalance) || 0) + Number(data.bonus);
+          setWalletBalance(newBal);
+          localStorage.setItem('fh_wallet', newBal);
+        }
+        setShowRegModal(false);
+        alert(`Welcome ${data.customer.name}! Customer details saved. ₹${data.bonus || 100} Welcome Bonus added to your FixoWallet!`);
+      } else {
+        alert(data.error || 'Failed to save customer details');
+      }
+    } catch {
+      alert('Error communicating with server');
+    }
+  };
+
+  // Subscribe to Annual Maintenance Contract
+  const subscribeAmcPlan = async (plan) => {
+    if (!customer?.phone || !customer?.name) {
+      alert('Please fill your customer profile & doorstep address first.');
+      setShowRegModal(true);
+      return;
+    }
+
+    const conf = confirm(`Subscribe to ${plan.name} for ₹${plan.price}/year?\n\nIncludes ${plan.visits_included} Deep Maintenance visits & zero visit charges for 365 days.`);
+    if (!conf) return;
+
+    try {
+      const res = await fetch(`${API}/api/subscriptions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: customer.id || `cust-${Date.now()}`,
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          plan_id: plan.id,
+          plan_name: plan.name,
+          price_paid: plan.price,
+          visits_total: plan.visits_included || 2,
+          duration_days: plan.duration_days || 365
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const updatedCustomer = {
+          ...customer,
+          active_subscription: plan.name,
+          subscription_expires: new Date(Date.now() + (plan.duration_days || 365) * 86400000).toISOString()
+        };
+        setCustomer(updatedCustomer);
+        localStorage.setItem('fh_customer', JSON.stringify(updatedCustomer));
+        setAmcSuccessModal({ plan, sub: data.subscription });
+      } else {
+        alert(data.error || 'Subscription could not be processed');
+      }
+    } catch {
+      alert('Connection error');
+    }
+  };
+
   const handleCheckout = async (e) => {
     e.preventDefault();
     if (!cart.length) return;
@@ -341,9 +467,15 @@ export default function App() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          customer_name: form.customer_name || customer.name,
+          customer_phone: form.customer_phone || customer.phone,
+          alternate_phone: form.alternate_phone || customer.alternate_phone || '',
           address: activeAddr,
+          landmark: form.landmark || customer.landmark || '',
+          pincode: form.pincode || customer.pincode || '110016',
+          is_amc: customer.active_subscription ? 1 : 0,
           city,
-          notes: `${visitMode}${isExpress ? ' | ⚡ Express 30m' : ''}${tipAmount ? ` | Tip: ₹${tipAmount}` : ''}${appliedPromo ? ` | Promo: ${appliedPromo.code}` : ''}`,
+          notes: `${visitMode}${isExpress ? ' | ⚡ Express 30m' : ''}${tipAmount ? ` | Tip: ₹${tipAmount}` : ''}${appliedPromo ? ` | Promo: ${appliedPromo.code}` : ''}${customer.active_subscription ? ' | 👑 AMC Member' : ''}`,
           items: cart,
           total_amount: finalPayable,
           source: 'website'
@@ -533,6 +665,7 @@ export default function App() {
             <nav className="sub-links">
               {[
                 ['home', 'Home'],
+                ['amc', '🛡️ AMC Care Plans'],
                 ['bookings', `Bookings (${bookings.length})`],
                 ['requests', `Requests (${requests.length})`],
                 ['chats', 'Chats'],
@@ -543,6 +676,17 @@ export default function App() {
               ))}
             </nav>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button
+                className="btn btn-outline"
+                style={{ padding: '7px 12px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6, borderColor: '#e2e8f0', background: '#f8fafc' }}
+                onClick={() => { setRegForm(customer); setShowRegModal(true); }}
+              >
+                <span>👤</span>
+                <span style={{ fontWeight: 700 }}>{customer?.name ? customer.name.split(' ')[0] : 'Register'}</span>
+                {customer?.active_subscription && (
+                  <span style={{ background: '#7e22ce', color: '#fff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>AMC</span>
+                )}
+              </button>
               <button className="btn btn-outline-dark" style={{ padding: '7px 14px' }} onClick={() => { setBookingSuccess(null); setCartOpen(true); }}>
                 <ShoppingBag size={15} /> Cart {cartCount > 0 && <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-grid', placeItems: 'center', fontSize: '0.7rem', fontWeight: 800 }}>{cartCount}</span>}
               </button>
@@ -896,6 +1040,265 @@ export default function App() {
         </div>
       )}
 
+      {/* ===== AMC / CARE SUBSCRIPTION PLANS VIEW ===== */}
+      {view === 'amc' && (
+        <div className="container section">
+          {/* AMC Hero Banner */}
+          <div style={{
+            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%)',
+            borderRadius: 24,
+            padding: '36px 32px',
+            color: '#fff',
+            marginBottom: 32,
+            boxShadow: '0 16px 36px rgba(124, 58, 237, 0.28)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 20
+          }}>
+            <div style={{ maxWidth: 640 }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'rgba(255, 255, 255, 0.2)',
+                padding: '4px 12px',
+                borderRadius: 999,
+                fontSize: '0.8rem',
+                fontWeight: 800,
+                backdropFilter: 'blur(4px)',
+                marginBottom: 12
+              }}>
+                🛡️ FIXOCARE ANNUAL MAINTENANCE CONTRACT (AMC)
+              </div>
+              <h1 style={{ fontSize: '2rem', fontWeight: 900, lineHeight: 1.2, marginBottom: 10 }}>
+                Zero Repair Bills. Unlimited Peace of Mind.
+              </h1>
+              <p style={{ opacity: 0.9, fontSize: '0.94rem', lineHeight: 1.5, marginBottom: 16 }}>
+                Subscribe to FixoCare annual plans for AC, Home Appliances, Water Purifiers & PC.
+                Get free deep service visits, <strong>₹0 inspection charges for 365 days</strong>, and 20% off genuine spare parts.
+              </p>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: '0.82rem', fontWeight: 700 }}>
+                <span>✓ Free Deep Clean Visits</span>
+                <span>✓ ₹0 Visiting Fee</span>
+                <span>✓ 30-Min Fast Dispatch</span>
+                <span>✓ 20% Off All Parts</span>
+              </div>
+            </div>
+
+            {customer?.active_subscription ? (
+              <div style={{
+                background: '#fff',
+                color: '#1e1b4b',
+                borderRadius: 20,
+                padding: 24,
+                boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                minWidth: 260
+              }}>
+                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase' }}>
+                  👑 Your Active Membership
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, marginTop: 4 }}>
+                  {customer.active_subscription}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
+                  Expires: {customer.subscription_expires ? new Date(customer.subscription_expires).toLocaleDateString() : 'Active (365 Days)'}
+                </div>
+                <div style={{ marginTop: 12, padding: '8px 12px', background: '#f5f3ff', borderRadius: 10, fontSize: '0.76rem', color: '#6d28d9', fontWeight: 700 }}>
+                  ✓ VIP Benefits Active on All Bookings
+                </div>
+              </div>
+            ) : (
+              <button
+                className="btn btn-yellow"
+                onClick={() => {
+                  const firstPlan = amcPlans[0];
+                  if (firstPlan) subscribeAmcPlan(firstPlan);
+                  else alert('Select a plan below to subscribe!');
+                }}
+                style={{ padding: '14px 28px', fontSize: '1rem', fontWeight: 800, boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}
+              >
+                Join FixoCare VIP from ₹999/yr →
+              </button>
+            )}
+          </div>
+
+          {/* AMC Plans Grid */}
+          <div style={{ marginBottom: 40 }}>
+            <div style={{ textAlign: 'center', maxWidth: 600, margin: '0 auto 28px' }}>
+              <h2 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Choose Your Annual Care Package</h2>
+              <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>
+                All plans include free scheduled doorstep checkups, priority routing & free breakdown call-outs
+              </p>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: 20
+            }}>
+              {amcPlans.map(plan => {
+                let featArr = [];
+                try {
+                  featArr = Array.isArray(plan.features_json)
+                    ? plan.features_json
+                    : JSON.parse(plan.features_json || '[]');
+                } catch {
+                  featArr = typeof plan.features_json === 'string' ? plan.features_json.split(',') : [];
+                }
+
+                const isCurrent = customer?.active_subscription === plan.name;
+
+                return (
+                  <div key={plan.id} style={{
+                    background: '#fff',
+                    borderRadius: 22,
+                    border: isCurrent ? '2.5px solid #7c3aed' : '1.5px solid var(--border)',
+                    padding: 24,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: isCurrent ? '0 12px 30px rgba(124, 58, 237, 0.15)' : '0 4px 16px rgba(0,0,0,0.04)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    {plan.badge && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        background: '#7c3aed',
+                        color: '#fff',
+                        fontSize: '0.68rem',
+                        fontWeight: 900,
+                        padding: '4px 12px',
+                        borderBottomLeftRadius: 12,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        {plan.badge}
+                      </div>
+                    )}
+
+                    <div>
+                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: 4 }}>
+                        {plan.category_name}
+                      </div>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 12, color: '#0f172a' }}>
+                        {plan.name}
+                      </h3>
+
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 14 }}>
+                        <span style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a' }}>₹{plan.price}</span>
+                        {plan.original_price && (
+                          <span style={{ fontSize: '0.9rem', color: '#94a3b8', textDecoration: 'line-through' }}>
+                            ₹{plan.original_price}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>/ year</span>
+                      </div>
+
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        marginBottom: 16,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        display: 'flex',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span>Included Visits:</span>
+                        <strong style={{ color: '#059669' }}>{plan.visits_included} Deep Maintenance Visits</strong>
+                      </div>
+
+                      <div style={{ fontSize: '0.84rem', fontWeight: 700, marginBottom: 8, color: '#334155' }}>
+                        Plan Privileges:
+                      </div>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem', color: '#475569' }}>
+                        {featArr.map((f, fi) => (
+                          <li key={fi} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <span style={{ color: '#10b981', fontWeight: 900, fontSize: '0.9rem' }}>✓</span>
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                      {isCurrent ? (
+                        <div style={{
+                          background: '#ecfdf5',
+                          color: '#047857',
+                          padding: '12px',
+                          borderRadius: 12,
+                          textAlign: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.88rem'
+                        }}>
+                          ✓ Currently Subscribed
+                        </div>
+                      ) : (
+                        <button
+                          className="btn btn-primary"
+                          style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                            borderColor: '#7c3aed',
+                            fontSize: '0.92rem',
+                            fontWeight: 800
+                          }}
+                          onClick={() => subscribeAmcPlan(plan)}
+                        >
+                          Subscribe Now (₹{plan.price}/yr)
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Value Guarantee */}
+          <div style={{
+            background: '#f8fafc',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: 20,
+            padding: 28,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 20
+          }}>
+            <div>
+              <div style={{ fontSize: '1.8rem', marginBottom: 6 }}>🛡️</div>
+              <strong style={{ fontSize: '0.96rem' }}>365-Day Guarantee</strong>
+              <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: 4 }}>
+                Any breakdown issue resolved with zero inspection fees. Certified ITI field crew.
+              </p>
+            </div>
+            <div>
+              <div style={{ fontSize: '1.8rem', marginBottom: 6 }}>⚡</div>
+              <strong style={{ fontSize: '0.96rem' }}>Priority Dispatch</strong>
+              <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: 4 }}>
+                Subscribers jump the queue with guaranteed 30-minute doorstep service assignment.
+              </p>
+            </div>
+            <div>
+              <div style={{ fontSize: '1.8rem', marginBottom: 6 }}>💰</div>
+              <strong style={{ fontSize: '0.96rem' }}>Save Up to ₹4,500/Year</strong>
+              <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: 4 }}>
+                Bundled deep maintenance services cost 40% less than on-demand individual visits.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== BOOKINGS VIEW ===== */}
       {view === 'bookings' && (
         <div className="container section">
@@ -1048,12 +1451,94 @@ export default function App() {
       {/* ===== PROFILE & ADDRESSES VIEW ===== */}
       {view === 'profile' && (
         <div className="container section">
-          <div className="profile-header" style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div className="profile-av">👤</div>
+          {/* Customer Profile Banner */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            borderRadius: 22,
+            padding: '28px 30px',
+            color: '#fff',
+            marginBottom: 24,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 16
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+              <div style={{
+                width: 60,
+                height: 60,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #0079ff, #6366f1)',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: '1.5rem',
+                fontWeight: 800,
+                color: '#fff'
+              }}>
+                {customer?.name ? customer.name[0] : '👤'}
+              </div>
               <div>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>Rahul Sharma</h2>
-                <div style={{ opacity: 0.85, fontSize: '0.86rem' }}>+91 98765 43210 • Delhi NCR</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{customer?.name || 'Registered Customer'}</h2>
+                  {customer?.address_type && (
+                    <span style={{ background: 'rgba(255,255,255,0.15)', fontSize: '0.72rem', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                      {customer.address_type}
+                    </span>
+                  )}
+                  {customer?.active_subscription && (
+                    <span style={{ background: '#7c3aed', color: '#fff', fontSize: '0.72rem', padding: '3px 9px', borderRadius: 999, fontWeight: 800 }}>
+                      👑 VIP AMC
+                    </span>
+                  )}
+                </div>
+                <div style={{ opacity: 0.85, fontSize: '0.86rem', marginTop: 3 }}>
+                  📞 {customer?.phone} {customer?.alternate_phone ? `• Alt: ${customer.alternate_phone}` : ''}
+                </div>
+                {customer?.email && (
+                  <div style={{ opacity: 0.75, fontSize: '0.82rem', marginTop: 2 }}>
+                    ✉️ {customer.email}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              className="btn btn-primary"
+              onClick={() => { setRegForm(customer); setShowRegModal(true); }}
+              style={{ padding: '10px 18px', fontSize: '0.88rem' }}
+            >
+              ✏️ Edit Customer Profile &amp; Address
+            </button>
+          </div>
+
+          {/* Doorstep Address & KYC Details Card */}
+          <div style={{
+            background: '#fff',
+            border: '1.5px solid var(--border)',
+            borderRadius: 18,
+            padding: 22,
+            marginBottom: 24
+          }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: 12 }}>🏠 Doorstep Delivery Address on Record</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, fontSize: '0.86rem' }}>
+              <div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Full Address</div>
+                <div style={{ fontWeight: 600, marginTop: 2 }}>{customer?.address || 'Not filled'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Landmark</div>
+                <div style={{ fontWeight: 600, marginTop: 2 }}>📍 {customer?.landmark || 'Not provided'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Area Pin Code</div>
+                <div style={{ fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>📮 {customer?.pincode || '110016'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active AMC Plan</div>
+                <div style={{ fontWeight: 700, marginTop: 2, color: customer?.active_subscription ? '#7c3aed' : 'var(--muted)' }}>
+                  {customer?.active_subscription ? `👑 ${customer.active_subscription}` : 'None (Pay-as-you-go)'}
+                </div>
               </div>
             </div>
           </div>
@@ -1223,20 +1708,92 @@ export default function App() {
 
                   {/* Checkout Form */}
                   <form onSubmit={handleCheckout} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div className="form-group">
-                      <label>Select Delivery Address</label>
-                      <select value={selectedAddressId} onChange={e => setSelectedAddressId(e.target.value)}>
-                        {addresses.map(a => <option key={a.id} value={a.id}>{a.label}: {a.text}</option>)}
-                      </select>
-                    </div>
+                    {customer?.active_subscription && (
+                      <div style={{ background: '#f5f3ff', border: '1.5px solid #c4b5fd', borderRadius: 12, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: '1.2rem' }}>👑</span>
+                        <div>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#6d28d9' }}>VIP AMC Care Active</div>
+                          <div style={{ fontSize: '0.74rem', color: '#7c3aed' }}>Zero inspection fee & priority field crew assigned!</div>
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div className="form-group"><label>Date</label><input type="date" required value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} /></div>
-                      <div className="form-group"><label>Slot</label>
+                      <div className="form-group">
+                        <label>Customer Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={form.customer_name}
+                          onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
+                          placeholder="Full Name"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Primary Phone *</label>
+                        <input
+                          type="tel"
+                          required
+                          value={form.customer_phone}
+                          onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))}
+                          placeholder="+91 98765 43210"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div className="form-group">
+                        <label>Alternate Phone</label>
+                        <input
+                          type="tel"
+                          value={form.alternate_phone || ''}
+                          onChange={e => setForm(f => ({ ...f, alternate_phone: e.target.value }))}
+                          placeholder="Alternate Mobile"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Area Pin Code *</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          value={form.pincode || ''}
+                          onChange={e => setForm(f => ({ ...f, pincode: e.target.value }))}
+                          placeholder="e.g. 110016"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Complete Doorstep Address *</label>
+                      <input
+                        type="text"
+                        required
+                        value={form.address}
+                        onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                        placeholder="House / Flat No, Building, Street"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Nearby Landmark</label>
+                      <input
+                        type="text"
+                        value={form.landmark || ''}
+                        onChange={e => setForm(f => ({ ...f, landmark: e.target.value }))}
+                        placeholder="e.g. Near City Mall / Opp Metro Pillar 42"
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div className="form-group"><label>Date *</label><input type="date" required value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} /></div>
+                      <div className="form-group"><label>Slot *</label>
                         <select value={form.scheduled_slot} onChange={e => setForm(f => ({ ...f, scheduled_slot: e.target.value }))}>
                           {TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                     </div>
+
                     <div className="form-group">
                       <label>Payment Method</label>
                       <select value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}>
@@ -1246,6 +1803,7 @@ export default function App() {
                         <option value="Cash on Delivery">Cash on Delivery</option>
                       </select>
                     </div>
+
                     <button type="submit" disabled={submitting} className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '0.94rem' }}>
                       {submitting ? 'Placing Order...' : `Pay ₹${finalPayable} & Book`}
                     </button>
@@ -1402,6 +1960,187 @@ export default function App() {
               <span>₹{invoiceModal.total_amount}</span>
             </div>
             <button className="btn btn-outline" onClick={() => window.print()} style={{ width: '100%', marginTop: 16 }}>Print Receipt</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== CUSTOMER REGISTRATION / PROFILE MODAL ===== */}
+      {showRegModal && (
+        <div className="modal-bg" onClick={() => setShowRegModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, padding: 24, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '1px solid var(--border)', pb: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: '#eff6ff', color: '#1d4ed8', display: 'grid', placeItems: 'center', fontSize: '1.2rem' }}>
+                  👤
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Customer Details &amp; Registration</h3>
+                  <div style={{ fontSize: '0.76rem', color: '#059669', fontWeight: 700 }}>
+                    🎁 Complete registration &amp; get ₹100 Welcome Bonus!
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setShowRegModal(false)} style={{ background: 'none', border: 'none' }}><X size={18} /></button>
+            </div>
+
+            <form onSubmit={handleRegisterCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="form-group">
+                <label>Customer Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rahul Sharma"
+                  value={regForm.name || ''}
+                  onChange={e => setRegForm(f => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group">
+                  <label>Primary Mobile *</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 98765 43210"
+                    value={regForm.phone || ''}
+                    onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Alternate Mobile</label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98111 22334"
+                    value={regForm.alternate_phone || ''}
+                    onChange={e => setRegForm(f => ({ ...f, alternate_phone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Gmail / Email ID *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="customer@gmail.com"
+                  value={regForm.email || ''}
+                  onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Complete Doorstep Address (Flat/House No, Building, Street) *</label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Flat 402, Tower B, Green Park Residency, Sector 15"
+                  value={regForm.address || ''}
+                  onChange={e => setRegForm(f => ({ ...f, address: e.target.value }))}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group">
+                  <label>Nearby Landmark</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Near City Mall"
+                    value={regForm.landmark || ''}
+                    onChange={e => setRegForm(f => ({ ...f, landmark: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Area Pin Code (6 Digits) *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="e.g. 110016"
+                    value={regForm.pincode || ''}
+                    onChange={e => setRegForm(f => ({ ...f, pincode: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group">
+                  <label>Address Type</label>
+                  <select
+                    value={regForm.address_type || 'Home'}
+                    onChange={e => setRegForm(f => ({ ...f, address_type: e.target.value }))}
+                  >
+                    <option value="Home">Home</option>
+                    <option value="Work">Office / Work</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>City</label>
+                  <input
+                    type="text"
+                    value={regForm.city || 'Delhi NCR'}
+                    onChange={e => setRegForm(f => ({ ...f, city: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setShowRegModal(false)}
+                  style={{ flex: 1, padding: 11 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ flex: 2, padding: 11, fontWeight: 800 }}
+                >
+                  Save &amp; Claim ₹100 Bonus
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== AMC SUBSCRIPTION CONGRATULATIONS MODAL ===== */}
+      {amcSuccessModal && (
+        <div className="modal-bg" onClick={() => setAmcSuccessModal(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, padding: 28, textAlign: 'center' }}>
+            <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>👑</div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#1e1b4b', marginBottom: 8 }}>
+              VIP AMC Care Subscribed!
+            </h2>
+            <div style={{
+              background: '#f5f3ff',
+              border: '1.5px solid #c4b5fd',
+              borderRadius: 14,
+              padding: '16px',
+              margin: '16px 0',
+              textAlign: 'left'
+            }}>
+              <div style={{ fontSize: '0.76rem', color: '#7c3aed', fontWeight: 800, textTransform: 'uppercase' }}>Package Details</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e1b4b', marginTop: 2 }}>{amcSuccessModal.plan.name}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10, fontSize: '0.82rem' }}>
+                <div><strong>Duration:</strong> 365 Days</div>
+                <div><strong>Visits:</strong> {amcSuccessModal.plan.visits_included} Deep Visits</div>
+                <div><strong>Inspection:</strong> ₹0 (Free)</div>
+                <div><strong>Spares:</strong> 20% OFF</div>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', marginBottom: 20 }}>
+              Your membership has been registered in the FixoHub network. All future service bookings will automatically reflect your VIP status and 0 visiting fees!
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '12px', fontWeight: 800, background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}
+              onClick={() => { setAmcSuccessModal(null); setView('amc'); }}
+            >
+              Go to AMC Dashboard
+            </button>
           </div>
         </div>
       )}

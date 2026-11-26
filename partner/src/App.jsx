@@ -1486,7 +1486,31 @@ export default function App() {
                     {bookings.slice(0, 5).map(b => (
                       <tr key={b.id}>
                         <td><strong>#{b.booking_code}</strong></td>
-                        <td>{b.customer_name} ({b.customer_phone})<br /><span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{b.address}</span></td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <strong>{b.customer_name}</strong>
+                            {Number(b.is_amc) === 1 && (
+                              <span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '2px 6px', borderRadius: 6, fontSize: '0.68rem', fontWeight: 800 }}>
+                                👑 VIP AMC
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', marginTop: 2 }}>
+                            <a href={`tel:${b.customer_phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 700 }}>
+                              📞 {b.customer_phone}
+                            </a>
+                            {b.alternate_phone && (
+                              <span style={{ color: 'var(--muted)', fontSize: '0.74rem', marginLeft: 6 }}>
+                                Alt: {b.alternate_phone}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: 3, lineHeight: 1.3 }}>
+                            📍 {b.address || 'Address provided'}
+                            {b.landmark && <span style={{ color: '#0369a1', display: 'block' }}>Near: {b.landmark}</span>}
+                            {b.pincode && <span style={{ color: '#334155', fontWeight: 700, display: 'inline-block', marginTop: 2 }}>📮 PIN: {b.pincode}</span>}
+                          </div>
+                        </td>
                         <td>{b.scheduled_date} @ {b.scheduled_slot}</td>
                         <td><strong>₹{b.total_amount}</strong></td>
                         <td><span className={`badge badge-${b.status}`}>{b.status.replace('_', ' ')}</span></td>
@@ -1551,7 +1575,31 @@ export default function App() {
                   {bookings.map(b => (
                     <tr key={b.id}>
                       <td><strong>#{b.booking_code}</strong></td>
-                      <td><strong>{b.customer_name}</strong><br />{b.customer_phone}<br /><span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{b.address}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <strong>{b.customer_name}</strong>
+                          {Number(b.is_amc) === 1 && (
+                            <span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '2px 6px', borderRadius: 6, fontSize: '0.68rem', fontWeight: 800 }}>
+                              👑 VIP AMC
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', marginTop: 2 }}>
+                          <a href={`tel:${b.customer_phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 700 }}>
+                            📞 {b.customer_phone}
+                          </a>
+                          {b.alternate_phone && (
+                            <span style={{ color: 'var(--muted)', fontSize: '0.74rem', marginLeft: 6 }}>
+                              Alt: {b.alternate_phone}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: 3, lineHeight: 1.3 }}>
+                          📍 {b.address || 'Address provided'}
+                          {b.landmark && <span style={{ color: '#0369a1', display: 'block' }}>Near: {b.landmark}</span>}
+                          {b.pincode && <span style={{ color: '#334155', fontWeight: 700, display: 'inline-block', marginTop: 2 }}>📮 PIN: {b.pincode}</span>}
+                        </div>
+                      </td>
                       <td>{(b.items || []).map(i => `${i.name} ×${i.qty}`).join(', ')}</td>
                       <td>{b.scheduled_date}<br /><span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{b.scheduled_slot}</span></td>
                       <td><strong>₹{b.total_amount}</strong></td>

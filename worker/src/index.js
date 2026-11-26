@@ -229,21 +229,65 @@ export default {
         return json(await env.DB.prepare('SELECT * FROM partner_payouts WHERE id = ?').bind(id).first());
       }
 
-      // ==================== CUSTOMERS CRM (REAL D1 CRUD) ====================
+      // ==================== CUSTOMERS CRM (REAL D1 CRUD & REGISTRATION) ====================
       if (path === '/api/customers' && method === 'GET') {
         const { results } = await env.DB.prepare('SELECT * FROM customers ORDER BY orders_count DESC, joined_at DESC').all();
         return json(results);
       }
 
+      if (path === '/api/customers/register' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const {
+          name, phone, email = '', city = 'Delhi NCR',
+          address = '', landmark = '', pincode = '110016',
+          alternate_phone = '', address_type = 'Home',
+          wallet_balance = 100
+        } = body;
+        if (!name || !phone) return json({ error: 'Name and Mobile Phone are required' }, 400);
+
+        const cleanPhone = phone.replace(/\s+/g, '');
+        const existing = await env.DB.prepare('SELECT * FROM customers WHERE phone = ? OR phone = ?').bind(cleanPhone, phone).first();
+
+        if (existing) {
+          await env.DB.prepare(`
+            UPDATE customers SET
+              name = ?, email = ?, city = ?, address = ?,
+              landmark = ?, pincode = ?, alternate_phone = ?, address_type = ?
+            WHERE id = ?
+          `).bind(name, email, city, address, landmark, pincode, alternate_phone, address_type, existing.id).run();
+          return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(existing.id).first());
+        } else {
+          const id = `cust-${crypto.randomUUID().slice(0, 8)}`;
+          const now = new Date().toISOString();
+          await env.DB.prepare(`
+            INSERT INTO customers (
+              id, name, phone, email, city, address, landmark, pincode,
+              alternate_phone, address_type, orders_count, total_spend, wallet_balance, status, active_subscription, joined_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'Active', 'None', ?)
+          `).bind(id, name, cleanPhone, email, city, address, landmark, pincode, alternate_phone, address_type, Number(wallet_balance), now).run();
+          return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first(), 201);
+        }
+      }
+
       if (path === '/api/customers' && method === 'POST') {
-        const { name, phone, email = '', city = 'Delhi NCR', wallet_balance = 100 } = await request.json().catch(() => ({}));
+        const {
+          name, phone, email = '', city = 'Delhi NCR',
+          address = '', landmark = '', pincode = '110016',
+          alternate_phone = '', address_type = 'Home',
+          wallet_balance = 100
+        } = await request.json().catch(() => ({}));
         if (!name || !phone) return json({ error: 'name and phone are required' }, 400);
+        const cleanPhone = phone.replace(/\s+/g, '');
         const id = `cust-${crypto.randomUUID().slice(0, 8)}`;
         const now = new Date().toISOString();
         await env.DB.prepare(`
-          INSERT INTO customers (id, name, phone, email, city, orders_count, total_spend, wallet_balance, status, joined_at)
-          VALUES (?, ?, ?, ?, ?, 0, 0, ?, 'Active', ?)
-        `).bind(id, name, phone, email, city, Number(wallet_balance), now).run();
+          INSERT INTO customers (
+            id, name, phone, email, city, address, landmark, pincode,
+            alternate_phone, address_type, orders_count, total_spend, wallet_balance, status, active_subscription, joined_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'Active', 'None', ?)
+        `).bind(id, name, cleanPhone, email, city, address, landmark, pincode, alternate_phone, address_type, Number(wallet_balance), now).run();
         return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first(), 201);
       }
 
@@ -261,12 +305,96 @@ export default {
           newWallet = Number(body.wallet_balance);
         }
 
+        const name = body.name ?? existing.name;
+        const email = body.email ?? existing.email;
+        const city = body.city ?? existing.city;
+        const address = body.address ?? existing.address;
+        const landmark = body.landmark ?? existing.landmark;
+        const pincode = body.pincode ?? existing.pincode;
+        const alternate_phone = body.alternate_phone ?? existing.alternate_phone;
+        const address_type = body.address_type ?? existing.address_type;
+
         await env.DB.prepare(`
           UPDATE customers
-          SET status = ?, wallet_balance = ?
+          SET status = ?, wallet_balance = ?, name = ?, email = ?, city = ?,
+              address = ?, landmark = ?, pincode = ?, alternate_phone = ?, address_type = ?
           WHERE id = ?
-        `).bind(newStatus, newWallet, id).run();
+        `).bind(newStatus, newWallet, name, email, city, address, landmark, pincode, alternate_phone, address_type, id).run();
         return json(await env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first());
+      }
+
+      // ==================== SUBSCRIPTION & AMC PLANS APIS ====================
+      if (path === '/api/amc-plans' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM amc_plans ORDER BY price ASC').all();
+        return json(results.map(p => ({
+          ...p,
+          features: JSON.parse(p.features_json || '[]')
+        })));
+      }
+
+      if (path === '/api/amc-plans' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const {
+          name, category_name = 'Home Appliances', price, original_price = 0,
+          duration_days = 365, visits_included = 2, features = [], badge = 'POPULAR'
+        } = body;
+        if (!name || !price) return json({ error: 'Name and price are required' }, 400);
+
+        const id = `amc-${crypto.randomUUID().slice(0, 8)}`;
+        const now = new Date().toISOString();
+        const featuresJson = JSON.stringify(Array.isArray(features) ? features : [features]);
+
+        await env.DB.prepare(`
+          INSERT INTO amc_plans (id, name, category_name, price, original_price, duration_days, visits_included, features_json, badge, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, name, category_name, Number(price), Number(original_price || price), Number(duration_days), Number(visits_included), featuresJson, badge, now).run();
+
+        const created = await env.DB.prepare('SELECT * FROM amc_plans WHERE id = ?').bind(id).first();
+        return json({ ...created, features: JSON.parse(created.features_json || '[]') }, 201);
+      }
+
+      if (path.startsWith('/api/amc-plans/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM amc_plans WHERE id = ?').bind(id).run();
+        return json({ success: true, deletedId: id });
+      }
+
+      if (path === '/api/subscriptions' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM customer_subscriptions ORDER BY created_at DESC').all();
+        return json(results);
+      }
+
+      if (path === '/api/subscriptions' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const {
+          customer_id = '', customer_name, customer_phone, plan_id, plan_name,
+          price_paid, visits_total = 2, duration_days = 365
+        } = body;
+
+        if (!customer_name || !customer_phone || !plan_name || !price_paid) {
+          return json({ error: 'customer_name, customer_phone, plan_name and price_paid are required' }, 400);
+        }
+
+        const id = `sub-${Math.floor(100 + Math.random() * 900)}`;
+        const now = new Date().toISOString();
+        const startDate = now.slice(0, 10);
+        const endD = new Date(Date.now() + Number(duration_days) * 24 * 60 * 60 * 1000);
+        const endDate = endD.toISOString().slice(0, 10);
+
+        await env.DB.prepare(`
+          INSERT INTO customer_subscriptions (id, customer_id, customer_name, customer_phone, plan_id, plan_name, price_paid, status, visits_total, visits_used, start_date, end_date, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', ?, 0, ?, ?, ?)
+        `).bind(id, customer_id, customer_name, customer_phone, plan_id, plan_name, Number(price_paid), Number(visits_total), startDate, endDate, now).run();
+
+        // Also update customer's active subscription in CRM
+        const cleanPhone = customer_phone.replace(/\s+/g, '');
+        await env.DB.prepare(`
+          UPDATE customers SET active_subscription = ?, subscription_expires = ?
+          WHERE phone = ? OR phone = ? OR id = ?
+        `).bind(plan_name, endDate, cleanPhone, customer_phone, customer_id).run();
+
+        const created = await env.DB.prepare('SELECT * FROM customer_subscriptions WHERE id = ?').bind(id).first();
+        return json(created, 201);
       }
 
       // ==================== SUPPORT DISPUTE TICKETS (REAL D1 CRUD) ====================
@@ -657,6 +785,7 @@ export default {
         const body = await request.json().catch(() => ({}));
         const {
           customer_name, customer_phone, address, city = 'Delhi NCR',
+          pincode = '110016', landmark = '', alternate_phone = '', is_amc = 0,
           scheduled_date, scheduled_slot, payment_method = 'UPI / Cash on Visit',
           notes = '', items = [], source = 'website'
         } = body;
@@ -671,17 +800,31 @@ export default {
         const created_at = new Date().toISOString();
 
         await env.DB.prepare(`
-          INSERT INTO bookings (id, booking_code, customer_name, customer_phone, address, city, scheduled_date, scheduled_slot, payment_method, notes, items_json, total_amount, status, source, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-        `).bind(id, booking_code, customer_name, customer_phone, address, city, scheduled_date, scheduled_slot, payment_method, notes, JSON.stringify(items), total_amount, source, created_at).run();
+          INSERT INTO bookings (
+            id, booking_code, customer_name, customer_phone, address, city,
+            pincode, landmark, alternate_phone, is_amc,
+            scheduled_date, scheduled_slot, payment_method, notes, items_json, total_amount, status, source, created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+        `).bind(
+          id, booking_code, customer_name, customer_phone, address, city,
+          pincode, landmark, alternate_phone, is_amc ? 1 : 0,
+          scheduled_date, scheduled_slot, payment_method, notes, JSON.stringify(items), total_amount, source, created_at
+        ).run();
 
-        // Also ensure customer exists in customers CRM
+        // Also ensure customer exists in customers CRM with full details
         const cleanCustPhone = customer_phone.replace(/\s+/g, '');
         await env.DB.prepare(`
-          INSERT INTO customers (id, name, phone, city, orders_count, total_spend, joined_at)
-          VALUES (?, ?, ?, ?, 1, ?, ?)
-          ON CONFLICT(phone) DO UPDATE SET orders_count = orders_count + 1, total_spend = total_spend + excluded.total_spend
-        `).bind(`cust-${crypto.randomUUID().slice(0, 8)}`, customer_name, cleanCustPhone, city, total_amount, created_at).run();
+          INSERT INTO customers (id, name, phone, city, address, landmark, pincode, alternate_phone, orders_count, total_spend, wallet_balance, status, active_subscription, joined_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 100, 'Active', 'None', ?)
+          ON CONFLICT(phone) DO UPDATE SET
+            orders_count = orders_count + 1,
+            total_spend = total_spend + excluded.total_spend,
+            address = CASE WHEN excluded.address != '' THEN excluded.address ELSE address END,
+            landmark = CASE WHEN excluded.landmark != '' THEN excluded.landmark ELSE landmark END,
+            pincode = CASE WHEN excluded.pincode != '' THEN excluded.pincode ELSE pincode END,
+            alternate_phone = CASE WHEN excluded.alternate_phone != '' THEN excluded.alternate_phone ELSE alternate_phone END
+        `).bind(`cust-${crypto.randomUUID().slice(0, 8)}`, customer_name, cleanCustPhone, city, address, landmark, pincode, alternate_phone, total_amount, created_at).run();
 
         const created = await env.DB.prepare('SELECT * FROM bookings WHERE id = ?').bind(id).first();
         return json({ ...created, items }, 201);

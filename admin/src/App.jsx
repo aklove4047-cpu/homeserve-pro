@@ -13,7 +13,7 @@ import { ReportsTab, ServicemenTab, ZonesTab, IssuesTab, RolesTab, exportToCsv }
 import {
   AddServicemanModal, AddZoneModal, AddIssueModal,
   ResolveIssueModal, AddStaffModal, AddCustomerModal,
-  OnboardTechnicianModal, ViewTechnicianKYCModal
+  OnboardTechnicianModal, ViewTechnicianKYCModal, AddAmcPlanModal
 } from './EnterpriseModals';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -56,6 +56,17 @@ export default function App() {
   const [issues, setIssues] = useState([]);
   const [roles, setRoles] = useState([]);
   const [staff, setStaff] = useState([]);
+
+  // Subscriptions & AMC State
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [amcPlans, setAmcPlans] = useState([]);
+  const [showAmcModal, setShowAmcModal] = useState(false);
+  const [amcSearch, setAmcSearch] = useState('');
+  const [amcForm, setAmcForm] = useState({
+    name: '', category_name: 'AC & Cooling', badge: 'MOST POPULAR',
+    price: 1999, original_price: 2999, visits_included: 2, duration_days: 365,
+    features_str: '2 Full Foam-Jet Deep Chemical Cleanings, Unlimited Free Gas Leak Checks, Zero Visit Charges for 365 Days, 20% Discount on Spares'
+  });
 
   const [loading, setLoading] = useState(false);
 
@@ -107,7 +118,8 @@ export default function App() {
 
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({
-    name: '', phone: '', email: '', city: 'Delhi NCR', wallet_balance: 150
+    name: '', phone: '', email: '', city: 'Delhi NCR', wallet_balance: 150,
+    address: '', landmark: '', pincode: '110016', alternate_phone: '', address_type: 'Home'
   });
 
   // Modals & Action States
@@ -183,7 +195,7 @@ export default function App() {
     try {
       const [
         st, bk, sr, ct, tc, rq, pr, tx, ch, kc, py, cs, tk, ci, bn, bc, rv, sg,
-        sm, zn, is, rl, sf
+        sm, zn, is, rl, sf, sb, ap
       ] = await Promise.all([
         fetch(`${API}/api/stats`).then(r => r.json()).catch(() => ({})),
         fetch(`${API}/api/bookings`).then(r => r.json()).catch(() => []),
@@ -207,7 +219,9 @@ export default function App() {
         fetch(`${API}/api/zones`).then(r => r.json()).catch(() => []),
         fetch(`${API}/api/issues`).then(r => r.json()).catch(() => []),
         fetch(`${API}/api/roles`).then(r => r.json()).catch(() => []),
-        fetch(`${API}/api/staff`).then(r => r.json()).catch(() => [])
+        fetch(`${API}/api/staff`).then(r => r.json()).catch(() => []),
+        fetch(`${API}/api/subscriptions`).then(r => r.json()).catch(() => []),
+        fetch(`${API}/api/amc-plans`).then(r => r.json()).catch(() => [])
       ]);
 
       setStats(st);
@@ -233,6 +247,8 @@ export default function App() {
       setIssues(Array.isArray(is) ? is : []);
       setRoles(Array.isArray(rl) ? rl : []);
       setStaff(Array.isArray(sf) ? sf : []);
+      setSubscriptions(Array.isArray(sb) ? sb : []);
+      setAmcPlans(Array.isArray(ap) ? ap : []);
 
       if (sg && sg.gateways_config) {
         setGatewaysForm(sg.gateways_config);
@@ -502,6 +518,58 @@ export default function App() {
       }
     } catch {
       showToast('Server error creating customer', 'error');
+    }
+  };
+
+  // Create AMC Subscription Plan
+  const createAmcPlan = async (e) => {
+    e?.preventDefault();
+    try {
+      const features = (amcForm.features_str || '').split(',').map(s => s.trim()).filter(Boolean);
+      const res = await fetch(`${API}/api/amc-plans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...amcForm,
+          price: Number(amcForm.price),
+          original_price: Number(amcForm.original_price),
+          visits_included: Number(amcForm.visits_included),
+          duration_days: Number(amcForm.duration_days),
+          features
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        showToast('AMC Care Plan created successfully!');
+        setShowAmcModal(false);
+        setAmcForm({
+          name: '', category_name: 'AC & Cooling', badge: 'MOST POPULAR',
+          price: 1999, original_price: 2999, visits_included: 2, duration_days: 365,
+          features_str: '2 Full Foam-Jet Deep Chemical Cleanings, Unlimited Free Gas Leak Checks, Zero Visit Charges for 365 Days, 20% Discount on Spares'
+        });
+        fetchAll();
+      } else {
+        showToast(d.error || 'Failed to create AMC Plan', 'error');
+      }
+    } catch {
+      showToast('Error communicating with server', 'error');
+    }
+  };
+
+  // Delete / Deactivate AMC Plan
+  const deleteAmcPlan = async (id) => {
+    if (!confirm('Are you sure you want to delete this AMC Plan?')) return;
+    try {
+      const res = await fetch(`${API}/api/amc-plans/${id}`, { method: 'DELETE' });
+      const d = await res.json();
+      if (d.success) {
+        showToast('AMC Plan removed');
+        fetchAll();
+      } else {
+        showToast(d.error || 'Failed to delete plan', 'error');
+      }
+    } catch {
+      showToast('Server error', 'error');
     }
   };
 
@@ -968,12 +1036,28 @@ export default function App() {
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
-      return !searchCustomer ||
-        c.name?.toLowerCase().includes(searchCustomer.toLowerCase()) ||
-        c.phone?.includes(searchCustomer) ||
-        c.email?.toLowerCase().includes(searchCustomer.toLowerCase());
+      const q = searchCustomer?.toLowerCase() || '';
+      return !q ||
+        c.name?.toLowerCase().includes(q) ||
+        c.phone?.includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.address?.toLowerCase().includes(q) ||
+        c.landmark?.toLowerCase().includes(q) ||
+        c.pincode?.includes(q) ||
+        c.alternate_phone?.includes(q);
     });
   }, [customers, searchCustomer]);
+
+  const filteredSubscriptions = useMemo(() => {
+    return subscriptions.filter(s => {
+      const q = amcSearch?.toLowerCase() || '';
+      return !q ||
+        s.customer_name?.toLowerCase().includes(q) ||
+        s.customer_phone?.includes(q) ||
+        s.plan_name?.toLowerCase().includes(q) ||
+        s.status?.toLowerCase().includes(q);
+    });
+  }, [subscriptions, amcSearch]);
 
   const filteredKyc = useMemo(() => {
     return kycList.filter(k => {
@@ -1199,6 +1283,14 @@ export default function App() {
           >
             <div className="flex items-center gap-2.5"><Users className="w-4 h-4" /> Customers Directory</div>
             <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">{customers.length}</span>
+          </button>
+
+          <button
+            onClick={() => setTab('amc')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'amc' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
+          >
+            <div className="flex items-center gap-2.5"><Shield className="w-4 h-4 text-purple-400" /> Subscriptions & AMC</div>
+            <span className="text-[10px] bg-purple-950/80 text-purple-300 border border-purple-800/60 font-bold px-2 py-0.5 rounded-full">{subscriptions.length} active</span>
           </button>
 
           <button
@@ -1606,8 +1698,12 @@ export default function App() {
                         { label: 'Booking Code', key: 'booking_code' },
                         { label: 'Customer Name', key: 'customer_name' },
                         { label: 'Customer Phone', key: 'customer_phone' },
+                        { label: 'Alternate Phone', key: 'alternate_phone' },
                         { label: 'City', key: 'city' },
                         { label: 'Address', key: 'address' },
+                        { label: 'Landmark', key: 'landmark' },
+                        { label: 'Pincode', key: 'pincode' },
+                        { label: 'Is AMC Subscriber', key: 'is_amc' },
                         { label: 'Category', key: 'category_name' },
                         { label: 'Scheduled Date', key: 'scheduled_date' },
                         { label: 'Scheduled Time', key: 'scheduled_time' },
@@ -1643,8 +1739,20 @@ export default function App() {
                       <tr key={b.id} className="hover:bg-slate-50/80 transition">
                         <td className="p-4 font-mono font-bold text-blue-600">{b.booking_code}</td>
                         <td className="p-4">
-                          <div className="font-semibold text-slate-900">{b.customer_name}</div>
-                          <div className="text-slate-500 text-[11px]">{b.customer_phone} • {b.city}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-900">{b.customer_name}</span>
+                            {Number(b.is_amc) === 1 && (
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 font-bold rounded text-[9px] uppercase tracking-wider inline-flex items-center gap-0.5">
+                                <Shield className="w-2.5 h-2.5" /> AMC Care
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-slate-600 text-[11px] font-mono">
+                            {b.customer_phone} {b.alternate_phone ? <span className="text-slate-400">| Alt: {b.alternate_phone}</span> : ''}
+                          </div>
+                          <div className="text-slate-500 text-[10px] truncate max-w-[200px]" title={`${b.address || ''} ${b.landmark ? `(Near: ${b.landmark})` : ''} ${b.pincode ? `PIN: ${b.pincode}` : ''}`}>
+                            📍 {b.address || 'Address on file'} {b.landmark ? `(Near ${b.landmark})` : ''} {b.pincode ? `• PIN: ${b.pincode}` : ''}
+                          </div>
                         </td>
                         <td className="p-4">
                           <div className="text-slate-800 font-medium">
@@ -2139,9 +2247,16 @@ export default function App() {
                       const headers = [
                         { label: 'Customer ID', key: 'id' },
                         { label: 'Name', key: 'name' },
-                        { label: 'Phone', key: 'phone' },
+                        { label: 'Primary Phone', key: 'phone' },
+                        { label: 'Alternate Phone', key: 'alternate_phone' },
                         { label: 'Email', key: 'email' },
+                        { label: 'Address Type', key: 'address_type' },
+                        { label: 'Full Address', key: 'address' },
+                        { label: 'Landmark', key: 'landmark' },
+                        { label: 'Pin Code', key: 'pincode' },
                         { label: 'City', key: 'city' },
+                        { label: 'Active AMC Plan', key: 'active_subscription' },
+                        { label: 'AMC Expires', key: 'subscription_expires' },
                         { label: 'Wallet Balance (INR)', key: 'wallet_balance' },
                         { label: 'Total Orders', key: 'orders_count' },
                         { label: 'Total Spend (INR)', key: 'total_spend' },
@@ -2167,21 +2282,72 @@ export default function App() {
                   <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase tracking-wider text-[10px]">
                     <tr>
                       <th className="p-4">Customer Name</th>
-                      <th className="p-4">Contact</th>
-                      <th className="p-4">City</th>
+                      <th className="p-4">Contact Details</th>
+                      <th className="p-4">Full Address & PIN</th>
+                      <th className="p-4">AMC Care Status</th>
                       <th className="p-4">Total Orders</th>
                       <th className="p-4">FixoWallet</th>
-                      <th className="p-4">Account Status</th>
+                      <th className="p-4">Status</th>
                       <th className="p-4 text-right">CRM Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredCustomers.map(c => (
                       <tr key={c.id} className="hover:bg-slate-50 transition">
-                        <td className="p-4 font-bold text-slate-900">{c.name}</td>
-                        <td className="p-4 text-slate-600">{c.phone} {c.email && `• ${c.email}`}</td>
-                        <td className="p-4 text-slate-700">{c.city}</td>
-                        <td className="p-4 font-semibold text-slate-900">{c.orders_count || 0} (₹{c.total_spend || 0})</td>
+                        <td className="p-4">
+                          <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                            {c.name}
+                            {c.address_type && (
+                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 font-semibold rounded text-[9px] uppercase">
+                                {c.address_type}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {c.id}</div>
+                        </td>
+                        <td className="p-4 text-slate-700">
+                          <div className="font-semibold text-slate-900 font-mono">{c.phone}</div>
+                          {c.alternate_phone && (
+                            <div className="text-[11px] text-slate-500">Alt: <span className="font-mono">{c.alternate_phone}</span></div>
+                          )}
+                          {c.email && (
+                            <div className="text-[11px] text-blue-600 flex items-center gap-1 mt-0.5">
+                              <Mail className="w-3 h-3 text-slate-400" /> {c.email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 text-slate-700 max-w-[220px]">
+                          <div className="font-medium text-slate-800 line-clamp-2">
+                            {c.address || <span className="text-slate-400 italic">No street address saved</span>}
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            {c.landmark && <span>📍 Near {c.landmark} •</span>}
+                            {c.pincode && <span className="font-mono font-bold text-slate-700">📮 {c.pincode}</span>}
+                            {c.city && <span>({c.city})</span>}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          {c.active_subscription ? (
+                            <div>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 inline-flex items-center gap-1">
+                                <Shield className="w-3 h-3" /> {c.active_subscription}
+                              </span>
+                              {c.subscription_expires && (
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  Till: {new Date(c.subscription_expires).toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                              Pay-per-Service
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 font-semibold text-slate-900">
+                          {c.orders_count || 0} orders
+                          <div className="text-[11px] text-slate-500 font-normal">₹{c.total_spend || 0} spent</div>
+                        </td>
                         <td className="p-4 font-bold text-emerald-600">₹{c.wallet_balance || 0}</td>
                         <td className="p-4">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
@@ -3020,6 +3186,247 @@ export default function App() {
               showToast={showToast}
             />
           )}
+
+          {/* TAB: SUBSCRIPTIONS & AMC MANAGEMENT */}
+          {tab === 'amc' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/25">
+                    <Shield className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                      Annual Maintenance Contracts (AMC)
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+                        Subscription Engine
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Manage recurring home care contracts, monitor allocated doorstep visits & create service plans
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => {
+                      const headers = [
+                        { label: 'Subscription ID', key: 'id' },
+                        { label: 'Customer Name', key: 'customer_name' },
+                        { label: 'Customer Phone', key: 'customer_phone' },
+                        { label: 'Plan Name', key: 'plan_name' },
+                        { label: 'Price Paid (INR)', key: 'price_paid' },
+                        { label: 'Visits Total', key: 'visits_total' },
+                        { label: 'Visits Used', key: 'visits_used' },
+                        { label: 'Start Date', key: 'start_date' },
+                        { label: 'End Date', key: 'end_date' },
+                        { label: 'Status', key: 'status' }
+                      ];
+                      exportToCsv('FixoHub_AMC_Subscriptions', filteredSubscriptions, headers);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Subscriptions
+                  </button>
+                  <button
+                    onClick={() => setShowAmcModal(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-600/20 transition"
+                  >
+                    <Plus className="w-4 h-4" /> + Create AMC Plan
+                  </button>
+                </div>
+              </div>
+
+              {/* Stat Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Subscribers</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">{subscriptions.length}</div>
+                  <div className="text-xs text-purple-600 font-semibold mt-1">Customers enrolled</div>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Memberships</div>
+                  <div className="text-2xl font-black text-emerald-600 mt-1">
+                    {subscriptions.filter(s => s.status === 'active').length}
+                  </div>
+                  <div className="text-xs text-emerald-600 font-semibold mt-1">Zero visit charge guarantee</div>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">AMC Annual ARR</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">
+                    ₹{subscriptions.reduce((sum, s) => sum + (Number(s.price_paid) || 0), 0).toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-xs text-indigo-600 font-semibold mt-1">Prepaid subscription revenue</div>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active AMC Packages</div>
+                  <div className="text-2xl font-black text-indigo-600 mt-1">{amcPlans.length}</div>
+                  <div className="text-xs text-slate-500 font-medium mt-1">Tiers visible on website</div>
+                </div>
+              </div>
+
+              {/* Published AMC Packages Showcase */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">Published AMC Care Packages</h3>
+                    <p className="text-xs text-slate-500">Packages currently offered to customers across categories</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {amcPlans.map(plan => {
+                    let featArr = [];
+                    try {
+                      featArr = Array.isArray(plan.features_json)
+                        ? plan.features_json
+                        : JSON.parse(plan.features_json || '[]');
+                    } catch {
+                      featArr = typeof plan.features_json === 'string' ? plan.features_json.split(',') : [];
+                    }
+
+                    return (
+                      <div key={plan.id} className="bg-white rounded-2xl border border-purple-200 p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition relative overflow-hidden">
+                        <div className="absolute top-0 right-0">
+                          <span className="bg-purple-600 text-white text-[9px] font-extrabold uppercase px-3 py-1 rounded-bl-xl tracking-wider">
+                            {plan.badge || 'POPULAR'}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-purple-600 tracking-wider">
+                            {plan.category_name}
+                          </div>
+                          <h4 className="font-bold text-slate-900 text-sm mt-0.5">{plan.name}</h4>
+                          <div className="mt-2.5 flex items-baseline gap-2">
+                            <span className="text-2xl font-black text-slate-900">₹{plan.price}</span>
+                            {plan.original_price && (
+                              <span className="text-xs text-slate-400 line-through">₹{plan.original_price}</span>
+                            )}
+                            <span className="text-[11px] text-slate-500 font-medium">/ yr</span>
+                          </div>
+
+                          <div className="mt-3 py-2 px-3 bg-purple-50 rounded-xl text-purple-900 text-xs flex items-center justify-between font-semibold">
+                            <span>Free Visits:</span>
+                            <span className="font-bold">{plan.visits_included} Deep Visits</span>
+                          </div>
+
+                          <ul className="mt-3 space-y-1.5 text-[11px] text-slate-600">
+                            {featArr.slice(0, 4).map((f, i) => (
+                              <li key={i} className="flex items-start gap-1.5">
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                                <span>{f}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {plan.duration_days} Days Coverage
+                          </span>
+                          <button
+                            onClick={() => deleteAmcPlan(plan.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
+                            title="Deactivate Plan"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Subscriptions Ledger Table */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">Customer Subscriptions Registry</h3>
+                    <p className="text-xs text-slate-500">Live tracker of subscribed users, booked care visits and validity</p>
+                  </div>
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Search member name, phone, plan..."
+                      value={amcSearch}
+                      onChange={e => setAmcSearch(e.target.value)}
+                      className="pl-9 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs w-64 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">Customer</th>
+                        <th className="p-4">Subscribed Plan</th>
+                        <th className="p-4">Amount Paid</th>
+                        <th className="p-4">Doorstep Visits Included</th>
+                        <th className="p-4">Coverage Expiry</th>
+                        <th className="p-4">Contract Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredSubscriptions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-400">
+                            No active AMC subscriptions found matching criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSubscriptions.map(s => (
+                          <tr key={s.id} className="hover:bg-slate-50 transition">
+                            <td className="p-4 font-semibold text-slate-900">
+                              <div className="flex items-center gap-1.5">
+                                <span>{s.customer_name}</span>
+                                <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-100 text-purple-700 font-bold uppercase">
+                                  VIP Member
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-mono mt-0.5">{s.customer_phone}</div>
+                            </td>
+                            <td className="p-4">
+                              <div className="font-bold text-slate-800">{s.plan_name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">Plan ID: {s.plan_id}</div>
+                            </td>
+                            <td className="p-4 font-bold text-emerald-600 text-sm">
+                              ₹{s.price_paid}
+                            </td>
+                            <td className="p-4">
+                              <div className="font-semibold text-slate-800">
+                                {s.visits_used || 0} / {s.visits_total} Visits Availed
+                              </div>
+                              <div className="w-32 bg-slate-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                                <div
+                                  className="bg-purple-600 h-full rounded-full"
+                                  style={{ width: `${Math.min(100, ((s.visits_used || 0) / (s.visits_total || 1)) * 100)}%` }}
+                                />
+                              </div>
+                            </td>
+                            <td className="p-4 font-mono text-slate-700">
+                              <div>{s.end_date ? new Date(s.end_date).toLocaleDateString() : '365 Days'}</div>
+                              <div className="text-[10px] text-slate-400">Started: {s.start_date ? new Date(s.start_date).toLocaleDateString() : 'Recent'}</div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                                s.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {s.status || 'Active'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
@@ -3616,6 +4023,14 @@ export default function App() {
         setForm={setNewCustomerForm}
         onSubmit={saveNewCustomer}
         cities={cities}
+      />
+
+      <AddAmcPlanModal
+        isOpen={showAmcModal}
+        onClose={() => setShowAmcModal(false)}
+        form={amcForm}
+        setForm={setAmcForm}
+        onSubmit={createAmcPlan}
       />
     </div>
   );

@@ -1125,7 +1125,69 @@ export function AddCustomerModal({ show, isOpen, onClose, onSave, onSubmit, form
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">City</label>
+              <label className="block font-semibold text-slate-700 mb-1">Alternate Contact Phone</label>
+              <input
+                type="text"
+                placeholder="e.g. 9811200099"
+                value={form.alternate_phone || ''}
+                onChange={e => setForm(f => ({ ...f, alternate_phone: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-xs"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Area Pin Code (6 Digits) *</label>
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="e.g. 110016"
+                value={form.pincode || ''}
+                onChange={e => setForm(f => ({ ...f, pincode: e.target.value.replace(/[^0-9]/g, '') }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl font-mono font-bold text-blue-600 text-xs"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">Full Delivery Address (Flat / House, Society) *</label>
+            <input
+              type="text"
+              placeholder="e.g. Flat 402, Tower B, Palm Heights, Sector 62"
+              value={form.address || ''}
+              onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Nearest Landmark</label>
+              <input
+                type="text"
+                placeholder="e.g. Near Fortis Hospital"
+                value={form.landmark || ''}
+                onChange={e => setForm(f => ({ ...f, landmark: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Address Type</label>
+              <select
+                value={form.address_type || 'Home'}
+                onChange={e => setForm(f => ({ ...f, address_type: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-medium"
+              >
+                <option value="Home">Home</option>
+                <option value="Office">Office</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">City Hub</label>
               <select
                 value={form.city}
                 onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
@@ -1534,6 +1596,155 @@ export function OnboardTechnicianModal({ show, isOpen, onClose, onSave, onSubmit
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md shadow-indigo-600/20 text-xs transition flex items-center gap-1.5"
             >
               <CheckCircle className="w-4 h-4" /> Onboard & Register Provider
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 8. ADD NEW SUBSCRIPTION AMC PLAN MODAL
+// ==========================================
+export function AddAmcPlanModal({ show, isOpen, onClose, onSave, onSubmit, form, setForm }) {
+  const visible = show || isOpen;
+  const handleSubmit = onSubmit || onSave;
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Create New AMC / Care Subscription Plan</h3>
+              <p className="text-[11px] text-slate-500">Publish annual maintenance contract package for customers</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">AMC Plan Name *</label>
+            <input
+              type="text"
+              placeholder="e.g. AC ChillCare 365 AMC"
+              value={form.name || ''}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              className="w-full p-2.5 border border-slate-200 rounded-xl font-medium"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Category / Trade *</label>
+              <input
+                type="text"
+                placeholder="e.g. AC & Cooling"
+                value={form.category_name || ''}
+                onChange={e => setForm(f => ({ ...f, category_name: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl"
+                required
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Badge Tag</label>
+              <input
+                type="text"
+                placeholder="e.g. MOST POPULAR"
+                value={form.badge || 'POPULAR'}
+                onChange={e => setForm(f => ({ ...f, badge: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl font-bold uppercase text-purple-700"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Selling Price (₹ / Year) *</label>
+              <input
+                type="number"
+                min="99"
+                placeholder="1999"
+                value={form.price || ''}
+                onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl font-bold text-emerald-600"
+                required
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Original Price (Strike ₹)</label>
+              <input
+                type="number"
+                min="99"
+                placeholder="2999"
+                value={form.original_price || ''}
+                onChange={e => setForm(f => ({ ...f, original_price: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Free Service Visits Included</label>
+              <input
+                type="number"
+                min="1"
+                placeholder="2"
+                value={form.visits_included || 2}
+                onChange={e => setForm(f => ({ ...f, visits_included: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl font-mono"
+                required
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Coverage Duration (Days)</label>
+              <input
+                type="number"
+                min="30"
+                placeholder="365"
+                value={form.duration_days || 365}
+                onChange={e => setForm(f => ({ ...f, duration_days: e.target.value }))}
+                className="w-full p-2.5 border border-slate-200 rounded-xl font-mono"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">Key Plan Benefits (Comma-separated)</label>
+            <textarea
+              rows={3}
+              placeholder="2 Full Foam-Jet Deep Chemical Cleanings, Unlimited Free Gas Leak Checks, Zero Visit Charges for 365 Days, 20% Discount on Spares"
+              value={form.features_str || ''}
+              onChange={e => setForm(f => ({ ...f, features_str: e.target.value }))}
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"
+              required
+            />
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-md text-xs transition flex items-center gap-1.5"
+            >
+              <CheckCircle className="w-4 h-4" /> Publish AMC Plan
             </button>
           </div>
         </form>
