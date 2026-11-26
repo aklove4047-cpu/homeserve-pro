@@ -599,8 +599,10 @@ export function ViewTechnicianKYCModal({ technician, onClose }) {
 // ==========================================
 // 2. ADD SERVICE ZONE MODAL
 // ==========================================
-export function AddZoneModal({ show, onClose, onSave, form, setForm, cities }) {
-  if (!show) return null;
+export function AddZoneModal({ show, isOpen, onClose, onSave, onSubmit, form, setForm, cities }) {
+  const visible = show || isOpen;
+  const handleSubmit = onSubmit || onSave;
+  if (!visible) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -620,7 +622,7 @@ export function AddZoneModal({ show, onClose, onSave, form, setForm, cities }) {
           </button>
         </div>
 
-        <form onSubmit={onSave} className="space-y-3 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Zone Name</label>
             <input
@@ -707,8 +709,10 @@ export function AddZoneModal({ show, onClose, onSave, form, setForm, cities }) {
 // ==========================================
 // 3. REPORT NEW INCIDENT / ISSUE MODAL
 // ==========================================
-export function AddIssueModal({ show, onClose, onSave, form, setForm }) {
-  if (!show) return null;
+export function AddIssueModal({ show, isOpen, onClose, onSave, onSubmit, form, setForm }) {
+  const visible = show || isOpen;
+  const handleSubmit = onSubmit || onSave;
+  if (!visible) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -728,7 +732,7 @@ export function AddIssueModal({ show, onClose, onSave, form, setForm }) {
           </button>
         </div>
 
-        <form onSubmit={onSave} className="space-y-3 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Booking Order Code</label>
@@ -937,8 +941,10 @@ export function ResolveIssueModal({ issue, onClose, onSubmit, form, setForm }) {
 // ==========================================
 // 5. ADD STAFF MEMBER (RBAC) MODAL
 // ==========================================
-export function AddStaffModal({ show, onClose, onSave, form, setForm, roles, cities }) {
-  if (!show) return null;
+export function AddStaffModal({ show, isOpen, onClose, onSave, onSubmit, form, setForm, roles, cities }) {
+  const visible = show || isOpen;
+  const handleSubmit = onSubmit || onSave;
+  if (!visible) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -958,7 +964,7 @@ export function AddStaffModal({ show, onClose, onSave, form, setForm, roles, cit
           </button>
         </div>
 
-        <form onSubmit={onSave} className="space-y-3 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Full Name</label>
             <input
@@ -1057,8 +1063,10 @@ export function AddStaffModal({ show, onClose, onSave, form, setForm, roles, cit
 // ==========================================
 // 6. ADD NEW CUSTOMER MODAL
 // ==========================================
-export function AddCustomerModal({ show, onClose, onSave, form, setForm, cities }) {
-  if (!show) return null;
+export function AddCustomerModal({ show, isOpen, onClose, onSave, onSubmit, form, setForm, cities }) {
+  const visible = show || isOpen;
+  const handleSubmit = onSubmit || onSave;
+  if (!visible) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1078,7 +1086,7 @@ export function AddCustomerModal({ show, onClose, onSave, form, setForm, cities 
           </button>
         </div>
 
-        <form onSubmit={onSave} className="space-y-3 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Customer Full Name</label>
             <input

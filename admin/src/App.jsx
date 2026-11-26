@@ -7,9 +7,9 @@ import {
   TrendingUp, Clock, MapPin, Eye, Filter, ArrowUpRight, CheckCheck, X,
   Radio, Smartphone, UploadCloud, Key, Globe, Shield, Database, Sliders,
   Printer, Star, ChevronRight, Lock, BarChart3, FileSpreadsheet, AlertOctagon,
-  Map, UserPlus, Building2, Activity, ArrowDownToLine, Landmark
+  Map, UserPlus, Building2, Activity, ArrowDownToLine, Landmark, Mail
 } from 'lucide-react';
-import { ReportsTab, ServicemenTab, ZonesTab, IssuesTab, RolesTab } from './EnterpriseTabs';
+import { ReportsTab, ServicemenTab, ZonesTab, IssuesTab, RolesTab, exportToCsv } from './EnterpriseTabs';
 import {
   AddServicemanModal, AddZoneModal, AddIssueModal,
   ResolveIssueModal, AddStaffModal, AddCustomerModal,
@@ -932,7 +932,10 @@ export default function App() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `fixohub-d1-full-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
     showToast('Database JSON backup downloaded!');
   };
 
@@ -3013,73 +3016,6 @@ export default function App() {
           )}
 
           {/* TAB: STAFF ROLES & RBAC */}
-          {tab === 'roles' && (
-            <RolesTab
-              roles={roles}
-              staff={staff}
-              onAddStaffClick={() => setShowStaffModal(true)}
-              onToggleStaffStatus={toggleStaffStatus}
-              onDeleteStaffClick={deleteStaffMember}
-              showToast={showToast}
-            />
-          )}
-
-          {/* TAB: REPORTS & ANALYTICS DASHBOARD */}
-          {tab === 'reports' && (
-            <ReportsTab
-              stats={stats}
-              bookings={bookings}
-              servicemen={servicemen}
-              customers={customers}
-              issues={issues}
-              transactions={transactions}
-              cities={cities}
-              showToast={showToast}
-            />
-          )}
-
-          {/* TAB: SERVICEMEN (FIELD CREW) MANAGEMENT */}
-          {tab === 'servicemen' && (
-            <ServicemenTab
-              servicemen={servicemen}
-              cities={cities}
-              onAddClick={() => setShowServicemanModal(true)}
-              onToggleAvailability={toggleServicemanAvailability}
-              onDeleteClick={deleteServiceman}
-              showToast={showToast}
-            />
-          )}
-
-          {/* TAB: SERVICE ZONES & GEO-FENCING */}
-          {tab === 'zones' && (
-            <ZonesTab
-              zones={zones}
-              cities={cities}
-              onAddClick={() => setShowZoneModal(true)}
-              onToggleActive={toggleZoneActive}
-              onDeleteClick={deleteZone}
-              showToast={showToast}
-            />
-          )}
-
-          {/* TAB: INCIDENT & DISPUTE TRACKING */}
-          {tab === 'issues' && (
-            <IssuesTab
-              issues={issues}
-              onAddClick={() => setShowIssueModal(true)}
-              onResolveClick={(iss) => {
-                setResolveIssueModal(iss);
-                setResolveForm({
-                  status: iss.status === 'Open' ? 'Resolved' : iss.status,
-                  resolution_notes: iss.resolution_notes || '',
-                  refund_amount: iss.refund_amount || 0
-                });
-              }}
-              showToast={showToast}
-            />
-          )}
-
-          {/* TAB: USER ROLES & STAFF (RBAC) */}
           {tab === 'roles' && (
             <RolesTab
               roles={roles}
