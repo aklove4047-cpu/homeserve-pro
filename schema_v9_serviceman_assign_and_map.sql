@@ -1,0 +1,9 @@
+-- Migration v9: Missing columns on bookings and servicemen
+ALTER TABLE bookings ADD COLUMN serviceman_id TEXT DEFAULT NULL;
+ALTER TABLE bookings ADD COLUMN serviceman_name TEXT DEFAULT NULL;
+ALTER TABLE bookings ADD COLUMN serviceman_phone TEXT DEFAULT NULL;
+ALTER TABLE bookings ADD COLUMN lat REAL DEFAULT 28.6139;
+ALTER TABLE bookings ADD COLUMN lng REAL DEFAULT 77.2090;
+
+ALTER TABLE servicemen ADD COLUMN lat REAL DEFAULT 28.6200;
+ALTER TABLE servicemen ADD COLUMN lng REAL DEFAULT 77.2100;

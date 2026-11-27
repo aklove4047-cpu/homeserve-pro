@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, CalendarCheck, Wrench, Users, Plus, RefreshCw, Trash2,
   CheckCircle, XCircle, ExternalLink, LogOut, Tag, MessageSquare, CreditCard,
@@ -7,7 +7,8 @@ import {
   TrendingUp, Clock, MapPin, Eye, Filter, ArrowUpRight, CheckCheck, X,
   Radio, Smartphone, UploadCloud, Key, Globe, Shield, Database, Sliders,
   Printer, Star, ChevronRight, Lock, BarChart3, FileSpreadsheet, AlertOctagon,
-  Map, UserPlus, Building2, Activity, ArrowDownToLine, Landmark, Mail
+  Map, UserPlus, Building2, Activity, ArrowDownToLine, Landmark, Mail,
+  Volume2, VolumeX, Navigation
 } from 'lucide-react';
 import { ReportsTab, ServicemenTab, ZonesTab, IssuesTab, RolesTab, exportToCsv } from './EnterpriseTabs';
 import {
@@ -19,6 +20,36 @@ import {
 const API = import.meta.env.VITE_API_URL || '';
 const STATUSES = ['pending', 'confirmed', 'assigned', 'in_progress', 'completed', 'cancelled'];
 
+// Zero-dependency Web Audio API Order Alert Chime (4-Tone C5-E5-G5-C6)
+export const playOrderChime = () => {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const notes = [
+      { freq: 523.25, time: 0.0, dur: 0.12 }, // C5
+      { freq: 659.25, time: 0.12, dur: 0.12 }, // E5
+      { freq: 783.99, time: 0.24, dur: 0.15 }, // G5
+      { freq: 1046.50, time: 0.38, dur: 0.30 }  // C6
+    ];
+    notes.forEach(n => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(n.freq, ctx.currentTime + n.time);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + n.time);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.time + n.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + n.time);
+      osc.stop(ctx.currentTime + n.time + n.dur);
+    });
+  } catch (e) {
+    console.error('Audio play error', e);
+  }
+};
+
 export default function App() {
   const [authed, setAuthed] = useState(() => localStorage.getItem('hs_admin_auth') === '1');
   const [loginPhone, setLoginPhone] = useState('admin@fixohub.in');
@@ -29,6 +60,16 @@ export default function App() {
   const [tab, setTab] = useState('overview');
   const [revMode, setRevMode] = useState('Total GMV');
   const [toast, setToast] = useState(null);
+
+  // Sound Alert State
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    return localStorage.getItem('hs_admin_sound') !== '0';
+  });
+  const prevBookingsCount = useRef(0);
+
+  // Selected Booking on Map
+  const [selectedMapBooking, setSelectedMapBooking] = useState(null);
+  const [mapStatusFilter, setMapStatusFilter] = useState('all');
 
   // Core Data State (Loaded from D1)
   const [stats, setStats] = useState({});
@@ -225,7 +266,13 @@ export default function App() {
       ]);
 
       setStats(st);
-      setBookings(Array.isArray(bk) ? bk : []);
+      const bkList = Array.isArray(bk) ? bk : [];
+      if (soundEnabled && prevBookingsCount.current > 0 && bkList.length > prevBookingsCount.current) {
+        playOrderChime();
+      }
+      prevBookingsCount.current = bkList.length;
+
+      setBookings(bkList);
       setServices(Array.isArray(sr) ? sr : []);
       setCategories(Array.isArray(ct) ? ct : []);
       setTechnicians(Array.isArray(tc) ? tc : []);
@@ -944,8 +991,21 @@ export default function App() {
       tax_percent: settings.tax_percent || '18',
       min_order_amount: settings.min_order_amount || '199',
       cancel_penalty: settings.cancel_penalty || '99',
+      google_maps_api_key: settings.google_maps_api_key || '',
+      map_engine: settings.map_engine || 'osm',
+      map_center_city: settings.map_center_city || 'Delhi NCR',
+      sound_alerts_enabled: soundEnabled ? 1 : 0,
       gateways_config: gatewaysForm,
-      otp_config: otpForm
+      otp_config: otpForm,
+      map_config: {
+        google_maps_api_key: settings.google_maps_api_key || '',
+        map_engine: settings.map_engine || 'osm',
+        map_center_city: settings.map_center_city || 'Delhi NCR'
+      },
+      sound_alert_config: {
+        enabled: soundEnabled,
+        type: 'synthesizer_chime_4tone'
+      }
     };
 
     const res = await fetch(`${API}/api/settings`, {
@@ -955,7 +1015,7 @@ export default function App() {
     });
 
     if (res.ok) {
-      showToast('All Platform Settings, Gateways & OTP Keys saved to D1 Database!');
+      showToast('All Platform Settings, Google Maps API & Gateways saved to D1 Database!');
       fetchAll();
     }
   };
@@ -1191,6 +1251,16 @@ export default function App() {
           </button>
 
           <button
+            onClick={() => setTab('fleet_map')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'fleet_map' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
+          >
+            <div className="flex items-center gap-2.5"><Map className="w-4 h-4 text-emerald-400" /> Fleet &amp; Booking Map</div>
+            <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 font-bold px-1.5 py-0.5 rounded-full">
+              {bookings.filter(b => b.status !== 'cancelled').length} Active
+            </span>
+          </button>
+
+          <button
             onClick={() => setTab('requests')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium transition ${tab === 'requests' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'hover:bg-slate-800 text-slate-300'}`}
           >
@@ -1422,6 +1492,28 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                localStorage.setItem('hs_admin_sound', next ? '1' : '0');
+                if (next) playOrderChime();
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition ${
+                soundEnabled ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-500 border-slate-300'
+              }`}
+              title="Toggle Audio Order Chime"
+            >
+              {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-600" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
+              <span>Alert Sound: {soundEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+            <button
+              onClick={playOrderChime}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition flex items-center gap-1"
+              title="Test Order Alert Chime"
+            >
+              <Bell className="w-3 h-3 text-blue-600" /> Test Sound
+            </button>
             <a
               href="/"
               target="_blank"
@@ -1638,24 +1730,51 @@ export default function App() {
                         </div>
                         <div className="text-xs text-slate-500 mt-1">Slot: {b.scheduled_date} at {b.scheduled_slot}</div>
                       </div>
-                      <div className="pt-2 border-t border-slate-100">
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Assign Verified Technician:</label>
-                        <select
-                          className="w-full text-xs p-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          defaultValue=""
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              updateBooking(b.id, { technician_id: e.target.value, status: 'assigned' });
-                            }
-                          }}
-                        >
-                          <option value="" disabled>-- Select available technician --</option>
-                          {technicians.map(t => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} ({t.city}) - {t.specialty} [{t.is_available ? 'Available' : 'Busy'}]
-                            </option>
-                          ))}
-                        </select>
+                      <div className="pt-2 border-t border-slate-100 space-y-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">Assign Provider / Contractor:</label>
+                          <select
+                            className="w-full text-xs p-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                updateBooking(b.id, { technician_id: e.target.value, status: 'assigned' });
+                              }
+                            }}
+                          >
+                            <option value="" disabled>-- Select verified provider --</option>
+                            {technicians.map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.city}) - {t.specialty} [{t.is_available ? 'Available' : 'Busy'}]
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-emerald-800 mb-1">Or Assign Direct Serviceman (Crew):</label>
+                          <select
+                            className="w-full text-xs p-2 border border-emerald-300 rounded-xl bg-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                const sm = servicemen.find(s => s.id === e.target.value);
+                                updateBooking(b.id, {
+                                  serviceman_id: e.target.value,
+                                  serviceman_name: sm ? sm.name : null,
+                                  serviceman_phone: sm ? sm.phone : null,
+                                  status: 'assigned'
+                                });
+                              }
+                            }}
+                          >
+                            <option value="" disabled>-- Select field serviceman --</option>
+                            {servicemen.map(sm => (
+                              <option key={sm.id} value={sm.id}>
+                                👷‍♂️ {sm.name} ({sm.city} - {sm.specialty}) [{sm.is_available ? 'On Duty' : 'Offline'}]
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -1728,7 +1847,7 @@ export default function App() {
                       <th className="p-4">Booking Code</th>
                       <th className="p-4">Customer Details</th>
                       <th className="p-4">Service & Slot</th>
-                      <th className="p-4">Assigned Provider</th>
+                      <th className="p-4">Assigned Provider &amp; Service Man</th>
                       <th className="p-4">Amount</th>
                       <th className="p-4">Status</th>
                       <th className="p-4 text-right">Actions</th>
@@ -1753,6 +1872,16 @@ export default function App() {
                           <div className="text-slate-500 text-[10px] truncate max-w-[200px]" title={`${b.address || ''} ${b.landmark ? `(Near: ${b.landmark})` : ''} ${b.pincode ? `PIN: ${b.pincode}` : ''}`}>
                             📍 {b.address || 'Address on file'} {b.landmark ? `(Near ${b.landmark})` : ''} {b.pincode ? `• PIN: ${b.pincode}` : ''}
                           </div>
+                          <div className="mt-1">
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${b.lat || 28.6139},${b.lng || 77.2090}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition"
+                            >
+                              <Navigation className="w-2.5 h-2.5 text-blue-500" /> 🗺️ Live Navigation
+                            </a>
+                          </div>
                         </td>
                         <td className="p-4">
                           <div className="text-slate-800 font-medium">
@@ -1761,17 +1890,44 @@ export default function App() {
                           </div>
                           <div className="text-slate-500 text-[11px]">{b.scheduled_date} ({b.scheduled_slot})</div>
                         </td>
-                        <td className="p-4">
-                          <select
-                            value={b.technician_id || ''}
-                            onChange={(e) => updateBooking(b.id, { technician_id: e.target.value || null, status: b.status === 'pending' ? 'assigned' : b.status })}
-                            className="text-xs p-1.5 border border-slate-200 rounded-lg bg-slate-50"
-                          >
-                            <option value="">-- Unassigned --</option>
-                            {technicians.map(t => (
-                              <option key={t.id} value={t.id}>{t.name} ({t.city})</option>
-                            ))}
-                          </select>
+                        <td className="p-4 space-y-1.5 min-w-[200px]">
+                          <div>
+                            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Provider / Contractor:</div>
+                            <select
+                              value={b.technician_id || ''}
+                              onChange={(e) => updateBooking(b.id, { technician_id: e.target.value || null, status: b.status === 'pending' ? 'assigned' : b.status })}
+                              className="text-xs p-1.5 border border-slate-200 rounded-lg bg-slate-50 w-full"
+                            >
+                              <option value="">-- No Provider --</option>
+                              {technicians.map(t => (
+                                <option key={t.id} value={t.id}>{t.name} ({t.city})</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider">Field Service Man:</div>
+                            <select
+                              value={b.serviceman_id || ''}
+                              onChange={(e) => {
+                                const smId = e.target.value || null;
+                                const sm = servicemen.find(s => s.id === smId);
+                                updateBooking(b.id, {
+                                  serviceman_id: smId,
+                                  serviceman_name: sm ? sm.name : null,
+                                  serviceman_phone: sm ? sm.phone : null,
+                                  status: b.status === 'pending' ? 'assigned' : b.status
+                                });
+                              }}
+                              className="text-xs p-1.5 border border-emerald-300 rounded-lg bg-emerald-50/70 w-full font-medium text-emerald-950"
+                            >
+                              <option value="">-- No Service Man --</option>
+                              {servicemen.map(sm => (
+                                <option key={sm.id} value={sm.id}>
+                                  👷‍♂️ {sm.name} ({sm.city})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </td>
                         <td className="p-4 font-bold text-slate-900">₹{b.total_amount}</td>
                         <td className="p-4">
@@ -3106,6 +3262,90 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 🗺️ GOOGLE MAPS API & DISPATCH GEOLOCATION CONFIGURATION */}
+                <div className="pt-4 border-t border-slate-100 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        <Map className="w-4 h-4 text-emerald-600" /> Google Maps API &amp; Fleet Geolocation Settings
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Configure Google Maps JavaScript API for live technician routing, address autofill and fleet tracking.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Live Routing Active
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="col-span-full">
+                      <label className="block text-slate-700 font-semibold mb-1">Google Maps Platform JavaScript API Key</label>
+                      <input
+                        type="password"
+                        placeholder="AIzaSy..."
+                        value={settings.google_maps_api_key || ''}
+                        onChange={e => setSettings(s => ({ ...s, google_maps_api_key: e.target.value }))}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+                        <span>Leave empty to use OpenStreetMap / Leaflet (Free &amp; Zero Setup) or paste key for official Google Maps.</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Preferred Map Engine</label>
+                      <select
+                        value={settings.map_engine || 'osm'}
+                        onChange={e => setSettings(s => ({ ...s, map_engine: e.target.value }))}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl font-medium"
+                      >
+                        <option value="osm">OpenStreetMap &amp; Leaflet (Default Free - No Key Required)</option>
+                        <option value="google">Google Maps JavaScript Platform (Requires API Key)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Default Hub Center City</label>
+                      <select
+                        value={settings.map_center_city || 'Delhi NCR'}
+                        onChange={e => setSettings(s => ({ ...s, map_center_city: e.target.value }))}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl font-medium"
+                      >
+                        <option value="Delhi NCR">Delhi NCR (28.6139, 77.2090)</option>
+                        <option value="Mumbai">Mumbai (19.0760, 72.8777)</option>
+                        <option value="Bengaluru">Bengaluru (12.9716, 77.5946)</option>
+                        <option value="Hyderabad">Hyderabad (17.3850, 78.4867)</option>
+                        <option value="Pune">Pune (18.5204, 73.8567)</option>
+                        <option value="Jaipur">Jaipur (26.9124, 75.7873)</option>
+                        <option value="Chennai">Chennai (13.0827, 80.2707)</option>
+                        <option value="Kolkata">Kolkata (22.5726, 88.3639)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 🔔 ORDER SOUND ALERTS CONFIGURATION */}
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-blue-600" /> Real-time Order Audio Chime Alerts
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Zero-latency Web Audio API synthesizes a 4-tone pleasant delivery chime when bookings are placed.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={playOrderChime}
+                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition flex items-center gap-1.5"
+                    >
+                      <Bell className="w-3.5 h-3.5" /> 🔊 Test 4-Tone Chime
+                    </button>
+                  </div>
+                </div>
+
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                   <p className="text-xs text-slate-500">Settings will be saved to Cloudflare D1 table immediately.</p>
                   <button
@@ -3116,6 +3356,231 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* ==========================================
+              TAB: FLEET & LIVE BOOKING MAP
+              ========================================== */}
+          {tab === 'fleet_map' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Map className="w-5 h-5 text-emerald-600" /> Live Fleet &amp; Booking Dispatch Map
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      {bookings.filter(b => b.status !== 'cancelled').length} Active Pins
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Real-time geolocated doorstep orders, active crew servicemen, and turn-by-turn navigation routes.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <select
+                    value={cityFilter}
+                    onChange={e => setCityFilter(e.target.value)}
+                    className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+                  >
+                    <option value="All">All Operational Cities</option>
+                    {cities.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+
+                  <select
+                    value={mapStatusFilter}
+                    onChange={e => setMapStatusFilter(e.target.value)}
+                    className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+                  >
+                    <option value="all">All Order Statuses</option>
+                    <option value="pending">Pending Dispatch</option>
+                    <option value="assigned">Assigned / En Route</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+
+                  <button
+                    onClick={() => setTab('settings')}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                    title="Configure Google Maps API Key"
+                  >
+                    <Key className="w-3.5 h-3.5 text-amber-500" /> Maps API Key
+                  </button>
+                </div>
+              </div>
+
+              {/* Map Layout: Split Screen (Left: Order List, Right: Interactive Map Canvas) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Side: Active Orders List */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 max-h-[650px] overflow-y-auto">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      Orders In Dispatch Queue ({bookings.filter(b => b.status !== 'cancelled' && (cityFilter === 'All' || b.city === cityFilter) && (mapStatusFilter === 'all' || b.status === mapStatusFilter)).length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">Click to locate</span>
+                  </div>
+
+                  {bookings
+                    .filter(b => b.status !== 'cancelled' && (cityFilter === 'All' || b.city === cityFilter) && (mapStatusFilter === 'all' || b.status === mapStatusFilter))
+                    .map(b => (
+                      <div
+                        key={b.id}
+                        onClick={() => setSelectedMapBooking(b)}
+                        className={`p-3.5 rounded-xl border text-xs cursor-pointer transition space-y-2 ${
+                          selectedMapBooking?.id === b.id
+                            ? 'border-emerald-500 bg-emerald-50/50 shadow-sm'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-bold text-blue-600">{b.booking_code}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            b.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                            b.status === 'assigned' || b.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {b.status}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-slate-900">{b.customer_name}</div>
+                          <div className="text-slate-500 text-[11px] truncate mt-0.5">
+                            📍 {b.address || 'Address on file'} {b.pincode ? `• PIN: ${b.pincode}` : ''}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+                          <span className="text-slate-600">
+                            {b.serviceman_name ? `👷‍♂️ ${b.serviceman_name}` : b.technician_name ? `🏢 ${b.technician_name}` : '⚠️ Unassigned'}
+                          </span>
+                          <span className="font-bold text-slate-900">₹{b.total_amount}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                {/* Right Side: Interactive Geolocation Map View */}
+                <div className="lg:col-span-2 bg-slate-900 rounded-3xl p-6 text-white shadow-xl flex flex-col justify-between min-h-[550px] relative overflow-hidden border border-slate-800">
+                  {/* Subtle Grid Background */}
+                  <div className="absolute inset-0 opacity-15 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#38bdf8 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
+
+                  {/* Map Header Status Bar */}
+                  <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 bg-slate-800/80 backdrop-blur-md p-3.5 rounded-2xl border border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></div>
+                      <span className="font-bold text-xs text-emerald-400">Live GPS Tracking Active</span>
+                      <span className="text-slate-400 text-xs">• Hub: {cityFilter === 'All' ? (settings.map_center_city || 'Delhi NCR') : cityFilter}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Pending</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block"></span> Dispatched</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Completed</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span> Serviceman</span>
+                    </div>
+                  </div>
+
+                  {/* Simulated Geolocation Map Canvas with Pins */}
+                  <div className="relative z-10 my-8 py-10 flex flex-col items-center justify-center text-center">
+                    <div className="relative w-full max-w-lg h-64 bg-slate-800/40 rounded-3xl border border-slate-700/60 p-4 flex items-center justify-center overflow-hidden">
+                      {/* Radar circle animation */}
+                      <div className="absolute w-48 h-48 rounded-full border border-blue-500/20 animate-ping pointer-events-none"></div>
+                      <div className="absolute w-32 h-32 rounded-full border border-blue-500/30 pointer-events-none"></div>
+
+                      {/* Render Pins for Filtered Bookings */}
+                      {bookings
+                        .filter(b => b.status !== 'cancelled' && (cityFilter === 'All' || b.city === cityFilter) && (mapStatusFilter === 'all' || b.status === mapStatusFilter))
+                        .slice(0, 8)
+                        .map((b, idx) => {
+                          const topOffsets = ['20%', '45%', '70%', '30%', '60%', '25%', '50%', '75%'];
+                          const leftOffsets = ['25%', '60%', '35%', '75%', '20%', '50%', '80%', '40%'];
+                          const isSelected = selectedMapBooking?.id === b.id;
+                          return (
+                            <div
+                              key={b.id}
+                              onClick={() => setSelectedMapBooking(b)}
+                              style={{ top: topOffsets[idx % 8], left: leftOffsets[idx % 8] }}
+                              className={`absolute cursor-pointer transition transform hover:scale-125 z-20 ${
+                                isSelected ? 'scale-125' : ''
+                              }`}
+                            >
+                              <div className={`p-1.5 rounded-xl shadow-lg flex items-center gap-1 text-[10px] font-bold ${
+                                b.status === 'completed' ? 'bg-emerald-500 text-white shadow-emerald-500/50' :
+                                b.status === 'assigned' || b.status === 'in_progress' ? 'bg-blue-500 text-white shadow-blue-500/50' :
+                                'bg-amber-500 text-slate-900 shadow-amber-500/50'
+                              }`}>
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>{b.customer_name?.split(' ')[0]}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                      {/* Servicemen on Duty Markers */}
+                      {servicemen
+                        .filter(s => s.is_available && (cityFilter === 'All' || s.city === cityFilter))
+                        .slice(0, 3)
+                        .map((s, idx) => (
+                          <div
+                            key={s.id}
+                            style={{ top: `${35 + idx * 20}%`, left: `${40 + idx * 15}%` }}
+                            className="absolute cursor-pointer transition transform hover:scale-125 z-10"
+                            title={`Serviceman: ${s.name} (${s.specialty})`}
+                          >
+                            <div className="bg-purple-600 text-white p-1 rounded-xl shadow-lg shadow-purple-600/50 flex items-center gap-1 text-[9px] font-bold">
+                              <span>👷‍♂️ {s.name.split(' ')[0]}</span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Selected Booking Detail Drawer at Bottom */}
+                  {selectedMapBooking ? (
+                    <div className="relative z-10 bg-slate-800/90 backdrop-blur-md p-4 rounded-2xl border border-slate-700 flex flex-wrap items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-blue-400">#{selectedMapBooking.booking_code}</span>
+                          <span className="font-bold text-white text-sm">{selectedMapBooking.customer_name}</span>
+                          <a href={`tel:${selectedMapBooking.customer_phone}`} className="text-xs font-mono text-emerald-400">
+                            📞 {selectedMapBooking.customer_phone}
+                          </a>
+                        </div>
+                        <div className="text-xs text-slate-300">
+                          📍 {selectedMapBooking.address || 'Address on file'} {selectedMapBooking.landmark ? `(Near: ${selectedMapBooking.landmark})` : ''} {selectedMapBooking.pincode ? `• PIN: ${selectedMapBooking.pincode}` : ''}
+                        </div>
+                        <div className="text-[11px] text-slate-400 flex items-center gap-3">
+                          <span>Staff: <strong className="text-slate-200">{selectedMapBooking.serviceman_name || selectedMapBooking.technician_name || 'Unassigned'}</strong></span>
+                          <span>Slot: {selectedMapBooking.scheduled_date} ({selectedMapBooking.scheduled_slot})</span>
+                          <span>Amount: <strong className="text-emerald-400">₹{selectedMapBooking.total_amount}</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${selectedMapBooking.lat || 28.6139},${selectedMapBooking.lng || 77.2090}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/30"
+                        >
+                          <Navigation className="w-3.5 h-3.5" /> Open Google Maps &rarr;
+                        </a>
+                        <button
+                          onClick={() => setSelectedMapBooking(null)}
+                          className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-xs font-semibold"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative z-10 text-center py-2 text-xs text-slate-400">
+                      💡 Click on any booking card on the left or marker pin on the map to inspect customer location and open Google Maps navigation.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

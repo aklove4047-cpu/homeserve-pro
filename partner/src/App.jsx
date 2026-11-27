@@ -1,14 +1,45 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   LayoutDashboard, CalendarCheck, Wrench, RefreshCw, CheckCircle,
   XCircle, ExternalLink, LogOut, Briefcase, Play, CheckCheck,
   Wallet, Star, Clock, MapPin, Shield, DollarSign, Bell, Send,
   Radio, Award, AlertCircle, ArrowUpRight, Camera, UploadCloud,
   CreditCard, Landmark, FileText, Eye, ShieldCheck, UserCheck,
-  Copy, Check, Building2, User, Phone, Mail, X
+  Copy, Check, Building2, User, Phone, Mail, X, Users, Navigation,
+  Volume2, VolumeX, Map
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
+
+// Zero-dependency Web Audio API Synthesizer (Instant 4-Tone Alert Chime)
+export const playOrderChime = () => {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const notes = [
+      { freq: 523.25, time: 0.0, dur: 0.12 }, // C5
+      { freq: 659.25, time: 0.12, dur: 0.12 }, // E5
+      { freq: 783.99, time: 0.24, dur: 0.15 }, // G5
+      { freq: 1046.50, time: 0.38, dur: 0.30 }  // C6
+    ];
+    notes.forEach(n => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(n.freq, ctx.currentTime + n.time);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + n.time);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.time + n.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + n.time);
+      osc.stop(ctx.currentTime + n.time + n.dur);
+    });
+  } catch (e) {
+    console.error('Audio play error', e);
+  }
+};
 
 const SPECIALTIES = [
   'AC Cooling & Refrigeration',
@@ -40,11 +71,48 @@ export default function App() {
   const [partnersList, setPartnersList] = useState([]);
   const [phoneInput, setPhoneInput] = useState('+91 98765 43210');
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
-  const [tab, setTab] = useState('overview'); // overview, profile, radar, jobs, wallet, schedule, reviews, services
+  const [tab, setTab] = useState('overview'); // overview, profile, radar, jobs, servicemen, wallet, schedule, reviews, services
   const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
+  const [servicemen, setServicemen] = useState([]);
   const [copiedField, setCopiedField] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Sound Alert State (Saved to localStorage)
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    return localStorage.getItem('hs_partner_sound') !== '0';
+  });
+  const prevBookingsCount = useRef(0);
+
+  // Serviceman Management & Assignment Modals
+  const [showAddSmModal, setShowAddSmModal] = useState(false);
+  const [assignModalBooking, setAssignModalBooking] = useState(null);
+  const [navModalBooking, setNavModalBooking] = useState(null);
+  const [smSearch, setSmSearch] = useState('');
+
+  // Add Service Man Form
+  const [smForm, setSmForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    specialty: 'AC Cooling & Refrigeration',
+    city: 'Delhi NCR',
+    pincode: '110016',
+    experience_years: 3,
+    profile_image: '',
+    id_proof_type: 'PAN Card',
+    id_proof_number: '',
+    aadhaar_number: '',
+    aadhaar_image: '',
+    bank_name: 'State Bank of India',
+    bank_account_number: '',
+    bank_ifsc: '',
+    bank_holder_name: '',
+    upi_id: '',
+    address: '',
+    emergency_contact: '',
+    certification: 'Certified Technician'
+  });
 
   // Registration Form State (with Photo, Pincode, Gmail, Aadhaar, ID Proof, Bank)
   const [regForm, setRegForm] = useState({
@@ -129,13 +197,121 @@ export default function App() {
     setServices(srvs);
 
     if (currentPartner) {
-      const bks = await fetch(`${API}/api/bookings?technicianId=${encodeURIComponent(currentPartner.id)}`).then(r => r.json()).catch(() => []);
+      const [bks, sms] = await Promise.all([
+        fetch(`${API}/api/bookings?technicianId=${encodeURIComponent(currentPartner.id)}`).then(r => r.json()).catch(() => []),
+        fetch(`${API}/api/servicemen?providerId=${encodeURIComponent(currentPartner.id)}`).then(r => r.json()).catch(() => [])
+      ]);
+      
+      // Sound alert if new booking has arrived
+      if (soundEnabled && prevBookingsCount.current > 0 && bks.length > prevBookingsCount.current) {
+        playOrderChime();
+      }
+      prevBookingsCount.current = bks.length;
+
       setBookings(bks);
+      setServicemen(sms);
       const updatedMe = techs.find(t => t.id === currentPartner.id);
       if (updatedMe) {
         setPartner(updatedMe);
         localStorage.setItem('hs_partner', JSON.stringify(updatedMe));
       }
+    }
+  };
+
+  // Add Service Man by Provider
+  const handleAddServiceman = async (e) => {
+    e.preventDefault();
+    if (!smForm.name || !smForm.phone) {
+      alert('Please enter Serviceman Full Name and Phone Number.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/api/servicemen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...smForm,
+          provider_id: partner.id,
+          provider_name: partner.name,
+          city: smForm.city || partner.city,
+          specialty: smForm.specialty || partner.specialty
+        })
+      });
+      if (res.ok) {
+        alert(`Service Man "${smForm.name}" added successfully to your field crew!`);
+        setShowAddSmModal(false);
+        setSmForm({
+          name: '', phone: '', email: '', specialty: partner.specialty || 'AC Cooling & Refrigeration',
+          city: partner.city || 'Delhi NCR', pincode: partner.pincode || '110016',
+          experience_years: 3, profile_image: '', id_proof_type: 'PAN Card',
+          id_proof_number: '', aadhaar_number: '', aadhaar_image: '',
+          bank_name: 'State Bank of India', bank_account_number: '', bank_ifsc: '',
+          bank_holder_name: '', upi_id: '', address: '', emergency_contact: '',
+          certification: 'Certified Technician'
+        });
+        loadData(partner);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to add serviceman.');
+      }
+    } catch {
+      alert('Network error while adding serviceman.');
+    }
+  };
+
+  // Assign Serviceman to a Customer Booking
+  const handleAssignServiceman = async (bookingId, sm) => {
+    try {
+      const res = await fetch(`${API}/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceman_id: sm ? sm.id : null,
+          serviceman_name: sm ? sm.name : null,
+          serviceman_phone: sm ? sm.phone : null,
+          status: 'assigned'
+        })
+      });
+      if (res.ok) {
+        if (soundEnabled) playOrderChime();
+        alert(sm ? `Assigned to ${sm.name}! Customer and Serviceman notified.` : 'Booking unassigned.');
+        setAssignModalBooking(null);
+        loadData(partner);
+      } else {
+        alert('Failed to assign serviceman.');
+      }
+    } catch {
+      alert('Error updating assignment.');
+    }
+  };
+
+  // Toggle Serviceman Availability / Duty
+  const toggleSmDuty = async (sm) => {
+    try {
+      const res = await fetch(`${API}/api/servicemen/${sm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_available: !sm.is_available })
+      });
+      if (res.ok) {
+        loadData(partner);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Delete Serviceman
+  const deleteSm = async (id) => {
+    if (!confirm('Remove this service man from your crew?')) return;
+    try {
+      const res = await fetch(`${API}/api/servicemen/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('Service man removed.');
+        loadData(partner);
+      }
+    } catch {
+      alert('Error removing serviceman.');
     }
   };
 
@@ -885,6 +1061,10 @@ export default function App() {
           <CalendarCheck size={18} /> My Jobs ({bookings.length})
         </button>
 
+        <button className={`nav-btn ${tab === 'servicemen' ? 'active' : ''}`} onClick={() => setTab('servicemen')}>
+          <Users size={18} className="text-emerald-500" /> My Service Men ({servicemen.length})
+        </button>
+
         <button className={`nav-btn ${tab === 'wallet' ? 'active' : ''}`} onClick={() => setTab('wallet')}>
           <Wallet size={18} /> Partner Wallet (₹{partnerBalance})
         </button>
@@ -935,6 +1115,37 @@ export default function App() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              className="btn btn-outline"
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                localStorage.setItem('hs_partner_sound', next ? '1' : '0');
+                if (next) playOrderChime();
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+              title="Toggle Order Incoming Sound Alert"
+            >
+              {soundEnabled ? (
+                <>
+                  <Volume2 size={16} color="#10b981" />
+                  <span style={{ color: '#047857' }}>Sound: ON</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX size={16} color="#94a3b8" />
+                  <span style={{ color: '#64748b' }}>Sound: OFF</span>
+                </>
+              )}
+            </button>
+            <button
+              className="btn btn-outline"
+              onClick={playOrderChime}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem' }}
+              title="Test 4-Tone Alert Chime"
+            >
+              <Bell size={14} color="#0079ff" /> Test Chime
+            </button>
             <button className="btn btn-outline" onClick={toggleAvailability}>
               {partner.is_available ? <><CheckCircle size={15} color="#10b981" /> Duty: ONLINE</> : <><XCircle size={15} color="#ef4444" /> Duty: OFFLINE</>}
             </button>
@@ -1567,10 +1778,31 @@ export default function App() {
         {/* JOBS TAB */}
         {tab === 'jobs' && (
           <div className="card">
-            <h3 style={{ marginBottom: 14 }}>All Job Requests</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>All Job Requests &amp; Doorstep Dispatches</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--muted)', margin: '4px 0 0' }}>Assign field staff servicemen and navigate to doorstep locations with live GPS coordinates.</p>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-outline btn-sm" onClick={() => setTab('servicemen')}>
+                  <Users size={14} /> Manage Crew ({servicemen.length})
+                </button>
+              </div>
+            </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Booking</th><th>Customer</th><th>Items</th><th>Schedule</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Booking</th>
+                    <th>Customer &amp; Location</th>
+                    <th>Items</th>
+                    <th>Assigned Service Man</th>
+                    <th>Schedule</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {bookings.map(b => (
                     <tr key={b.id}>
@@ -1599,8 +1831,86 @@ export default function App() {
                           {b.landmark && <span style={{ color: '#0369a1', display: 'block' }}>Near: {b.landmark}</span>}
                           {b.pincode && <span style={{ color: '#334155', fontWeight: 700, display: 'inline-block', marginTop: 2 }}>📮 PIN: {b.pincode}</span>}
                         </div>
+                        <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${b.lat || 28.6139},${b.lng || 77.2090}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              border: '1px solid #bfdbfe'
+                            }}
+                          >
+                            <Navigation size={12} /> 🗺️ Live Google Maps &rarr;
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setNavModalBooking(b)}
+                            style={{
+                              background: '#f8fafc',
+                              color: '#475569',
+                              border: '1px solid #cbd5e1',
+                              padding: '3px 7px',
+                              borderRadius: 6,
+                              fontSize: '0.72rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            📍 Preview
+                          </button>
+                        </div>
                       </td>
                       <td>{(b.items || []).map(i => `${i.name} ×${i.qty}`).join(', ')}</td>
+                      <td>
+                        {b.serviceman_name ? (
+                          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 10px', borderRadius: 8 }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              👷‍♂️ {b.serviceman_name}
+                            </div>
+                            {b.serviceman_phone && (
+                              <div style={{ fontSize: '0.72rem', color: '#15803d', fontFamily: 'monospace' }}>
+                                📞 {b.serviceman_phone}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => setAssignModalBooking(b)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#0079ff',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                padding: 0,
+                                marginTop: 3,
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              Re-assign &rarr;
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => setAssignModalBooking(b)}
+                              style={{ fontSize: '0.74rem', padding: '5px 10px' }}
+                            >
+                              + Assign Service Man
+                            </button>
+                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: 2 }}>Self or crew staff</div>
+                          </div>
+                        )}
+                      </td>
                       <td>{b.scheduled_date}<br /><span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{b.scheduled_slot}</span></td>
                       <td><strong>₹{b.total_amount}</strong></td>
                       <td><span className={`badge badge-${b.status}`}>{b.status.replace('_', ' ')}</span></td>
@@ -1614,6 +1924,174 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* ==========================================
+            TAB: SERVICE MEN (FIELD CREW) MANAGEMENT
+            ========================================== */}
+        {tab === 'servicemen' && (
+          <div className="space-y-5">
+            {/* Header with Title, Search & Add Button */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-emerald-600" />
+                  My Service Men &amp; Field Crew
+                  <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                    {servicemen.length} Onboarded
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Register your field technicians, assign them incoming orders, track their live duty status and performance.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="Search name, phone, trade..."
+                  value={smSearch}
+                  onChange={e => setSmSearch(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '0.8rem',
+                    width: 220
+                  }}
+                />
+                <button
+                  onClick={() => setShowAddSmModal(true)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/25 transition flex items-center gap-1.5"
+                >
+                  <User className="w-4 h-4" /> + Onboard New Service Man
+                </button>
+              </div>
+            </div>
+
+            {/* Crew KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Crew Staff</div>
+                <div className="text-2xl font-black text-slate-900 mt-1">{servicemen.length}</div>
+                <div className="text-xs text-slate-500 mt-0.5">Under your provider agency</div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active On Duty</div>
+                <div className="text-2xl font-black text-emerald-600 mt-1">
+                  {servicemen.filter(s => s.is_available).length}
+                </div>
+                <div className="text-xs text-emerald-600 font-semibold mt-0.5">Ready to receive jobs</div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Jobs Delivered by Crew</div>
+                <div className="text-2xl font-black text-blue-600 mt-1">
+                  {servicemen.reduce((s, sm) => s + (Number(sm.jobs_completed) || 0), 0)}
+                </div>
+                <div className="text-xs text-blue-600 font-semibold mt-0.5">Verified customer completions</div>
+              </div>
+            </div>
+
+            {/* Servicemen Directory Cards */}
+            {servicemen.length === 0 ? (
+              <div className="bg-white p-12 text-center rounded-2xl border border-slate-200">
+                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-base font-bold text-slate-800">No Service Men Added Yet</h4>
+                <p className="text-xs text-slate-500 mt-1 mb-4">
+                  Add technicians who work under your agency so you can assign incoming doorstep jobs to them.
+                </p>
+                <button
+                  onClick={() => setShowAddSmModal(true)}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition inline-flex items-center gap-1.5"
+                >
+                  <User className="w-4 h-4" /> Add Your First Service Man
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {servicemen
+                  .filter(sm => {
+                    if (!smSearch) return true;
+                    const q = smSearch.toLowerCase();
+                    return sm.name.toLowerCase().includes(q) || sm.phone.includes(q) || (sm.specialty && sm.specialty.toLowerCase().includes(q));
+                  })
+                  .map(sm => (
+                    <div key={sm.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3.5 hover:shadow-md transition">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          {sm.profile_image ? (
+                            <img src={sm.profile_image} alt={sm.name} className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-sm" />
+                          ) : (
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 font-bold flex items-center justify-center text-base border border-emerald-200">
+                              {sm.name ? sm.name.slice(0, 2).toUpperCase() : 'SM'}
+                            </div>
+                          )}
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-sm leading-tight">{sm.name}</h4>
+                            <div className="text-[11px] font-bold text-blue-600 mt-0.5">{sm.specialty}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">📍 PIN: {sm.pincode || partner.pincode || '110016'}</div>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                          ⭐ {sm.rating || 4.9}
+                        </span>
+                      </div>
+
+                      {/* Contact details */}
+                      <div className="text-xs text-slate-600 space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Phone:</span>
+                          <a href={`tel:${sm.phone}`} className="font-mono font-bold text-slate-800 hover:text-blue-600">
+                            📞 {sm.phone}
+                          </a>
+                        </div>
+                        {sm.email && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Gmail:</span>
+                            <span className="text-slate-700 truncate max-w-[170px]">{sm.email}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Jobs Delivered:</span>
+                          <span className="font-bold text-emerald-600">{sm.jobs_completed || 0} completed</span>
+                        </div>
+                      </div>
+
+                      {/* KYC Verification Badges */}
+                      <div className="flex flex-wrap gap-1.5 text-[10px]">
+                        <span className="px-2 py-0.5 rounded font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                          ✓ Aadhaar: ••• {sm.aadhaar_number ? sm.aadhaar_number.slice(-4) : 'Verified'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          ✓ {sm.bank_name ? sm.bank_name.split(' ')[0] : 'Bank'} Acc
+                        </span>
+                      </div>
+
+                      {/* Actions: Duty toggle & Delete */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <button
+                          onClick={() => toggleSmDuty(sm)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                            sm.is_available
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${sm.is_available ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                          {sm.is_available ? 'Duty: ON' : 'Duty: OFF'}
+                        </button>
+                        <button
+                          onClick={() => deleteSm(sm.id)}
+                          className="text-xs text-red-500 hover:text-red-700 font-semibold"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1775,6 +2253,390 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <button className="btn btn-outline" onClick={() => setOtpModalBooking(null)}>Cancel</button>
                 <button className="btn btn-primary" onClick={() => verifyOtpAndStart(otpModalBooking.id)}>Verify &amp; Start</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ASSIGN SERVICE MAN TO BOOKING */}
+        {assignModalBooking && (
+          <div className="modal-bg" onClick={() => setAssignModalBooking(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Assign Field Service Man</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '4px 0 0' }}>
+                    Order #{assignModalBooking.booking_code} • {assignModalBooking.customer_name} ({assignModalBooking.address || assignModalBooking.city})
+                  </p>
+                </div>
+                <button onClick={() => setAssignModalBooking(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid #e2e8f0', marginBottom: 16 }}>
+                <div style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>Currently Assigned:</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: assignModalBooking.serviceman_name ? '#166534' : '#0079ff' }}>
+                  {assignModalBooking.serviceman_name ? `👷‍♂️ ${assignModalBooking.serviceman_name} (${assignModalBooking.serviceman_phone || ''})` : `Direct Partner (${partner.name})`}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 8 }}>
+                  Select Crew Technician to Dispatch:
+                </label>
+                {servicemen.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 16, background: '#f1f5f9', borderRadius: 12 }}>
+                    <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0 }}>No service men added to your agency yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => { setAssignModalBooking(null); setShowAddSmModal(true); }}
+                      style={{ marginTop: 8, padding: '6px 12px', background: '#0079ff', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      + Add Service Man Now
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
+                    {/* Option to assign to self */}
+                    <div
+                      onClick={() => handleAssignServiceman(assignModalBooking.id, { id: partner.id, name: `${partner.name} (Self)`, phone: partner.phone })}
+                      style={{
+                        padding: '10px 14px',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: 12,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        background: '#ffffff',
+                        transition: 'border-color 0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: '#eff6ff', color: '#0079ff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '0.8rem' }}>
+                          ME
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>{partner.name} (Direct Partner Dispatch)</div>
+                          <div style={{ fontSize: '0.74rem', color: '#64748b' }}>Handle directly without field crew</div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#0079ff' }}>Assign &rarr;</span>
+                    </div>
+
+                    {servicemen.map(sm => (
+                      <div
+                        key={sm.id}
+                        onClick={() => handleAssignServiceman(assignModalBooking.id, sm)}
+                        style={{
+                          padding: '10px 14px',
+                          border: assignModalBooking.serviceman_id === sm.id ? '2px solid #10b981' : '1px solid #e2e8f0',
+                          borderRadius: 12,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          background: assignModalBooking.serviceman_id === sm.id ? '#f0fdf4' : '#ffffff'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {sm.profile_image ? (
+                            <img src={sm.profile_image} alt={sm.name} style={{ width: 34, height: 34, borderRadius: 10, objectFit: 'cover' }} />
+                          ) : (
+                            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#ecfdf5', color: '#047857', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '0.8rem' }}>
+                              {sm.name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
+                              {sm.name} <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>({sm.specialty})</span>
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                              📞 {sm.phone} • 📍 PIN: {sm.pincode || partner.pincode || '110016'} • {sm.is_available ? '🟢 On Duty' : '⚪ Offline'}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          style={{
+                            padding: '6px 12px',
+                            background: assignModalBooking.serviceman_id === sm.id ? '#10b981' : '#0079ff',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 8,
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {assignModalBooking.serviceman_id === sm.id ? 'Assigned ✓' : 'Dispatch Staff'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button className="btn btn-outline" onClick={() => setAssignModalBooking(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD SERVICE MAN ONBOARDING */}
+        {showAddSmModal && (
+          <div className="modal-bg" onClick={() => setShowAddSmModal(false)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 650, padding: 26, maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Users size={20} color="#059669" /> Onboard Service Man to Your Crew
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '4px 0 0' }}>
+                    Enter personal, verification, operating area PIN, and payout details for your staff.
+                  </p>
+                </div>
+                <button onClick={() => setShowAddSmModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddServiceman} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Photo Upload */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: '#f8fafc', padding: 12, borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                  {smForm.profile_image ? (
+                    <img src={smForm.profile_image} alt="Preview" style={{ width: 56, height: 56, borderRadius: 14, objectFit: 'cover', border: '2px solid #0079ff' }} />
+                  ) : (
+                    <div style={{ width: 56, height: 56, borderRadius: 14, background: '#ecfdf5', color: '#047857', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.72rem', border: '2px dashed #a7f3d0' }}>
+                      <Camera size={18} />
+                      Photo
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Technician Photo
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = ev => setSmForm(f => ({ ...f, profile_image: ev.target.result }));
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      style={{ fontSize: '0.76rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Identity Inputs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Full Name *</label>
+                    <input
+                      required
+                      value={smForm.name}
+                      onChange={e => setSmForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Deepak Verma"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Mobile Number *</label>
+                    <input
+                      required
+                      value={smForm.phone}
+                      onChange={e => setSmForm(f => ({ ...f, phone: e.target.value }))}
+                      placeholder="e.g. +91 98765 11223"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.82rem', fontFamily: 'monospace' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Gmail / Email</label>
+                    <input
+                      type="email"
+                      value={smForm.email}
+                      onChange={e => setSmForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="e.g. deepak@gmail.com"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Specialty, City & Pincode */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Trade Specialty</label>
+                    <select
+                      value={smForm.specialty}
+                      onChange={e => setSmForm(f => ({ ...f, specialty: e.target.value }))}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                    >
+                      {SPECIALTIES.map(sp => <option key={sp} value={sp}>{sp}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Operating City</label>
+                    <select
+                      value={smForm.city}
+                      onChange={e => setSmForm(f => ({ ...f, city: e.target.value }))}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                    >
+                      {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Area Pin Code *</label>
+                    <input
+                      required
+                      maxLength={6}
+                      value={smForm.pincode}
+                      onChange={e => setSmForm(f => ({ ...f, pincode: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder="e.g. 110016"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.82rem', fontFamily: 'monospace', fontWeight: 700, color: '#0079ff' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Aadhaar & KYC */}
+                <div style={{ background: '#faf5ff', border: '1px solid #f3e8ff', borderRadius: 14, padding: 12 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#6b21a8', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ShieldCheck size={16} /> Aadhaar KYC &amp; Verification
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>12-Digit Aadhaar Number</label>
+                      <input
+                        maxLength={14}
+                        value={smForm.aadhaar_number}
+                        onChange={e => setSmForm(f => ({ ...f, aadhaar_number: e.target.value }))}
+                        placeholder="e.g. 9812 8491 0021"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.8rem', fontFamily: 'monospace' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Experience (Years)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={smForm.experience_years}
+                        onChange={e => setSmForm(f => ({ ...f, experience_years: +e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bank / Payout details */}
+                <div style={{ background: '#f0fdf4', border: '1px solid #dcfce7', borderRadius: 14, padding: 12 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#166534', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Landmark size={16} /> Bank Payout &amp; UPI Details
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Bank Name</label>
+                      <input
+                        value={smForm.bank_name}
+                        onChange={e => setSmForm(f => ({ ...f, bank_name: e.target.value }))}
+                        placeholder="State Bank of India"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Bank Account Number</label>
+                      <input
+                        value={smForm.bank_account_number}
+                        onChange={e => setSmForm(f => ({ ...f, bank_account_number: e.target.value }))}
+                        placeholder="Account number"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.8rem', fontFamily: 'monospace' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>Bank IFSC</label>
+                      <input
+                        value={smForm.bank_ifsc}
+                        onChange={e => setSmForm(f => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))}
+                        placeholder="SBIN0001234"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.8rem', fontFamily: 'monospace' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>UPI ID</label>
+                      <input
+                        value={smForm.upi_id}
+                        onChange={e => setSmForm(f => ({ ...f, upi_id: e.target.value }))}
+                        placeholder="serviceman@upi"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: '0.8rem', fontFamily: 'monospace' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowAddSmModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" style={{ background: '#059669', borderColor: '#059669' }}>
+                    Save &amp; Onboard Service Man
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: LIVE DOORSTEP MAP & DIRECTIONS PREVIEW */}
+        {navModalBooking && (
+          <div className="modal-bg" onClick={() => setNavModalBooking(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Navigation size={18} color="#0079ff" /> Doorstep Navigation
+                </h3>
+                <button onClick={() => setNavModalBooking(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #e2e8f0', marginBottom: 16 }}>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>{navModalBooking.customer_name}</div>
+                <div style={{ fontSize: '0.82rem', color: '#475569', marginTop: 4, lineHeight: 1.4 }}>
+                  📍 {navModalBooking.address || 'Address on file'}
+                  {navModalBooking.landmark && <div style={{ color: '#0369a1' }}>Near: {navModalBooking.landmark}</div>}
+                  {navModalBooking.pincode && <div style={{ fontWeight: 700, color: '#334155' }}>Area PIN: {navModalBooking.pincode}</div>}
+                </div>
+                <div style={{ marginTop: 8, fontSize: '0.74rem', color: '#64748b', fontFamily: 'monospace' }}>
+                  GPS Coordinates: {navModalBooking.lat || 28.6139}, {navModalBooking.lng || 77.2090}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${navModalBooking.lat || 28.6139},${navModalBooking.lng || 77.2090}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    padding: '12px 16px',
+                    background: '#0079ff',
+                    color: '#fff',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    textDecoration: 'none',
+                    boxShadow: '0 4px 12px rgba(0, 121, 255, 0.25)'
+                  }}
+                >
+                  <Navigation size={18} /> Open Turn-by-Turn in Google Maps &rarr;
+                </a>
+                <button className="btn btn-outline" onClick={() => setNavModalBooking(null)}>Close</button>
               </div>
             </div>
           </div>

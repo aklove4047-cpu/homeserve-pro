@@ -801,16 +801,31 @@ export default {
 
       // ==================== BOOKINGS (FULL CRUD) ====================
       if (path === '/api/bookings' && method === 'GET') {
-        const techId = url.searchParams.get('technicianId');
+        const techId = url.searchParams.get('technicianId') || url.searchParams.get('providerId');
+        const smId = url.searchParams.get('servicemanId');
         let sql = `
-          SELECT b.*, t.name as technician_name, t.phone as technician_phone
+          SELECT b.*,
+            t.name as technician_name, t.phone as technician_phone,
+            COALESCE(b.serviceman_name, sm.name) as serviceman_name,
+            COALESCE(b.serviceman_phone, sm.phone) as serviceman_phone,
+            sm.specialty as serviceman_specialty,
+            sm.profile_image as serviceman_image
           FROM bookings b
           LEFT JOIN technicians t ON b.technician_id = t.id
+          LEFT JOIN servicemen sm ON b.serviceman_id = sm.id
         `;
         const params = [];
+        const whereClauses = [];
         if (techId) {
-          sql += ' WHERE b.technician_id = ? OR b.technician_id IS NULL';
+          whereClauses.push('(b.technician_id = ? OR b.technician_id IS NULL)');
           params.push(techId);
+        }
+        if (smId) {
+          whereClauses.push('b.serviceman_id = ?');
+          params.push(smId);
+        }
+        if (whereClauses.length > 0) {
+          sql += ' WHERE ' + whereClauses.join(' AND ');
         }
         sql += ' ORDER BY b.created_at DESC';
         const { results } = await env.DB.prepare(sql).bind(...params).all();
@@ -830,6 +845,23 @@ export default {
           return json({ error: 'Missing required booking fields or empty cart' }, 400);
         }
 
+        // Calculate default lat/lng based on city or slight offset for visual clustering
+        const cityMapCoords = {
+          'Delhi NCR': { lat: 28.6139, lng: 77.2090 },
+          'Mumbai': { lat: 19.0760, lng: 72.8777 },
+          'Bengaluru': { lat: 12.9716, lng: 77.5946 },
+          'Hyderabad': { lat: 17.3850, lng: 78.4867 },
+          'Pune': { lat: 18.5204, lng: 73.8567 },
+          'Kolkata': { lat: 22.5726, lng: 88.3639 },
+          'Chennai': { lat: 13.0827, lng: 80.2707 },
+          'Jaipur': { lat: 26.9124, lng: 75.7873 }
+        };
+        const baseCoord = cityMapCoords[city] || cityMapCoords['Delhi NCR'];
+        const jitterLat = (Math.random() - 0.5) * 0.06;
+        const jitterLng = (Math.random() - 0.5) * 0.06;
+        const bookingLat = Number(body.lat) || Number((baseCoord.lat + jitterLat).toFixed(6));
+        const bookingLng = Number(body.lng) || Number((baseCoord.lng + jitterLng).toFixed(6));
+
         const total_amount = body.total_amount ? Number(body.total_amount) : items.reduce((s, it) => s + Number(it.price) * Number(it.qty || 1), 0);
         const id = `bk-${crypto.randomUUID().slice(0, 8)}`;
         const booking_code = `HS-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -839,13 +871,15 @@ export default {
           INSERT INTO bookings (
             id, booking_code, customer_name, customer_phone, address, city,
             pincode, landmark, alternate_phone, is_amc,
-            scheduled_date, scheduled_slot, payment_method, notes, items_json, total_amount, status, source, created_at
+            scheduled_date, scheduled_slot, payment_method, notes, items_json, total_amount, status, source, created_at,
+            lat, lng
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
         `).bind(
           id, booking_code, customer_name, customer_phone, address, city,
           pincode, landmark, alternate_phone, is_amc ? 1 : 0,
-          scheduled_date, scheduled_slot, payment_method, notes, JSON.stringify(items), total_amount, source, created_at
+          scheduled_date, scheduled_slot, payment_method, notes, JSON.stringify(items), total_amount, source, created_at,
+          bookingLat, bookingLng
         ).run();
 
         // Also ensure customer exists in customers CRM with full details
@@ -874,13 +908,54 @@ export default {
         const status = body.status ?? existing.status;
         const technician_id = body.technician_id !== undefined ? (body.technician_id || null) : existing.technician_id;
 
-        await env.DB.prepare('UPDATE bookings SET status = ?, technician_id = ? WHERE id = ?').bind(status, technician_id, id).run();
-        if (status === 'completed' && existing.status !== 'completed' && technician_id) {
-          await env.DB.prepare('UPDATE technicians SET jobs_completed = jobs_completed + 1 WHERE id = ?').bind(technician_id).run();
+        let serviceman_id = body.serviceman_id !== undefined ? (body.serviceman_id || null) : existing.serviceman_id;
+        let serviceman_name = body.serviceman_name ?? existing.serviceman_name;
+        let serviceman_phone = body.serviceman_phone ?? existing.serviceman_phone;
+
+        // If serviceman_id is given but name is missing, look up serviceman
+        if (serviceman_id && (!serviceman_name || !serviceman_phone)) {
+          const sm = await env.DB.prepare('SELECT name, phone FROM servicemen WHERE id = ?').bind(serviceman_id).first();
+          if (sm) {
+            serviceman_name = sm.name;
+            serviceman_phone = sm.phone;
+          }
         }
+
+        const lat = body.lat !== undefined ? Number(body.lat) : existing.lat;
+        const lng = body.lng !== undefined ? Number(body.lng) : existing.lng;
+
+        await env.DB.prepare(`
+          UPDATE bookings SET
+            status = ?,
+            technician_id = ?,
+            serviceman_id = ?,
+            serviceman_name = ?,
+            serviceman_phone = ?,
+            lat = ?,
+            lng = ?
+          WHERE id = ?
+        `).bind(status, technician_id, serviceman_id, serviceman_name, serviceman_phone, lat, lng, id).run();
+
+        if (status === 'completed' && existing.status !== 'completed') {
+          if (technician_id) {
+            await env.DB.prepare('UPDATE technicians SET jobs_completed = jobs_completed + 1 WHERE id = ?').bind(technician_id).run();
+          }
+          if (serviceman_id) {
+            await env.DB.prepare('UPDATE servicemen SET jobs_completed = jobs_completed + 1 WHERE id = ?').bind(serviceman_id).run();
+          }
+        }
+
         const updated = await env.DB.prepare(`
-          SELECT b.*, t.name as technician_name, t.phone as technician_phone
-          FROM bookings b LEFT JOIN technicians t ON b.technician_id = t.id WHERE b.id = ?
+          SELECT b.*,
+            t.name as technician_name, t.phone as technician_phone,
+            COALESCE(b.serviceman_name, sm.name) as serviceman_name,
+            COALESCE(b.serviceman_phone, sm.phone) as serviceman_phone,
+            sm.specialty as serviceman_specialty,
+            sm.profile_image as serviceman_image
+          FROM bookings b
+          LEFT JOIN technicians t ON b.technician_id = t.id
+          LEFT JOIN servicemen sm ON b.serviceman_id = sm.id
+          WHERE b.id = ?
         `).bind(id).first();
         return json({ ...updated, items: JSON.parse(updated.items_json || '[]') });
       }
@@ -988,7 +1063,15 @@ export default {
 
       // ==================== SERVICEMEN (FIELD STAFF) ====================
       if (path === '/api/servicemen' && method === 'GET') {
-        const { results } = await env.DB.prepare('SELECT * FROM servicemen ORDER BY jobs_completed DESC, created_at DESC').all();
+        const providerId = url.searchParams.get('providerId');
+        let sql = 'SELECT * FROM servicemen';
+        const params = [];
+        if (providerId) {
+          sql += ' WHERE provider_id = ? OR provider_name LIKE ?';
+          params.push(providerId, `%${providerId}%`);
+        }
+        sql += ' ORDER BY jobs_completed DESC, created_at DESC';
+        const { results } = await env.DB.prepare(sql).bind(...params).all();
         return json(results);
       }
 
@@ -996,11 +1079,12 @@ export default {
         const body = await request.json().catch(() => ({}));
         const {
           name, phone, email = '', city = 'Delhi NCR', pincode = '110001', zone_name = 'Central Zone',
-          specialty, experience_years = 3, provider_name = 'FixoHub Direct Crew',
+          specialty, experience_years = 3, provider_name = 'FixoHub Direct Crew', provider_id = null,
           profile_image = '', id_proof_type = 'PAN Card', id_proof_number = '', id_proof_image = '',
           aadhaar_number = '', aadhaar_image = '',
           bank_name = 'HDFC Bank', bank_account_number = '', bank_ifsc = '', bank_holder_name = '', upi_id = '',
-          address = '', emergency_contact = '', police_verified = 1, certification = 'Certified ITI Expert'
+          address = '', emergency_contact = '', police_verified = 1, certification = 'Certified ITI Expert',
+          lat = 28.6200, lng = 77.2100
         } = body;
         if (!name || !phone || !specialty) return json({ error: 'name, phone and specialty are required' }, 400);
 
@@ -1008,18 +1092,18 @@ export default {
         const now = new Date().toISOString();
         await env.DB.prepare(`
           INSERT INTO servicemen (
-            id, name, phone, email, city, pincode, zone_name, specialty, experience_years,
-            rating, jobs_completed, is_available, status, provider_name,
+            id, provider_id, provider_name, name, phone, email, city, pincode, zone_name, specialty, experience_years,
+            rating, jobs_completed, is_available, status,
             profile_image, id_proof_type, id_proof_number, id_proof_image,
             aadhaar_number, aadhaar_image, bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
-            address, emergency_contact, police_verified, certification, created_at
+            address, emergency_contact, police_verified, certification, lat, lng, created_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 4.9, 0, 1, 'Active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4.9, 0, 1, 'Active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          id, name, phone, email, city, pincode, zone_name, specialty, Number(experience_years), provider_name,
+          id, provider_id, provider_name, name, phone, email, city, pincode, zone_name, specialty, Number(experience_years),
           profile_image, id_proof_type, id_proof_number, id_proof_image,
           aadhaar_number, aadhaar_image, bank_name, bank_account_number, bank_ifsc, bank_holder_name, upi_id,
-          address, emergency_contact, Number(police_verified), certification, now
+          address, emergency_contact, Number(police_verified), certification, Number(lat), Number(lng), now
         ).run();
 
         return json(await env.DB.prepare('SELECT * FROM servicemen WHERE id = ?').bind(id).first(), 201);
